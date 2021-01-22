@@ -4633,6 +4633,9 @@ PP(pp_entertry)
 {
     RUN_PP_CATCHABLY(Perl_pp_entertry);
 
+    if(PL_op->op_flags & OPf_SPECIAL)
+        save_scalar(PL_errgv);
+
     assert(!CATCH_GET);
     create_eval_scope(cLOGOP->op_other->op_next, 0);
     return PL_op->op_next;
