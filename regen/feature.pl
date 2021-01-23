@@ -819,9 +819,10 @@ bareword filehandles for older versions of perl.
 =head2 The 'try' feature.
 
 This feature enables the C<try> and C<catch> syntax, which allows exception
-handling.
+handling, where exceptions throwin from the body of the block introduced with
+C<try> are caught by executing the body of the C<catch> block.
 
-TODO(leonerd): write more docs here.
+For more information, see L<perlsyn/"Try Catch Exception Handling">.
 
 =head1 FEATURE BUNDLES
 
