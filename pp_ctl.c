@@ -1335,10 +1335,13 @@ S_dopoptolabel(pTHX_ const char *label, STRLEN len, U32 flags)
     for (i = cxstack_ix; i >= 0; i--) {
         const PERL_CONTEXT * const cx = &cxstack[i];
         switch (CxTYPE(cx)) {
+        case CXt_EVAL:
+            if(CxTRY(cx))
+                continue;
+            /* FALLTHROUGH */
         case CXt_SUBST:
         case CXt_SUB:
         case CXt_FORMAT:
-        case CXt_EVAL:
         case CXt_NULL:
             /* diag_listed_as: Exiting subroutine via %s */
             Perl_ck_warner(aTHX_ packWARN(WARN_EXITING), "Exiting %s via %s",
@@ -1485,10 +1488,13 @@ S_dopoptoloop(pTHX_ I32 startingblock)
     for (i = startingblock; i >= 0; i--) {
         const PERL_CONTEXT * const cx = &cxstack[i];
         switch (CxTYPE(cx)) {
+        case CXt_EVAL:
+            if(CxTRY(cx))
+                continue;
+            /* FALLTHROUGH */
         case CXt_SUBST:
         case CXt_SUB:
         case CXt_FORMAT:
-        case CXt_EVAL:
         case CXt_NULL:
             /* diag_listed_as: Exiting subroutine via %s */
             Perl_ck_warner(aTHX_ packWARN(WARN_EXITING), "Exiting %s via %s",
@@ -4631,13 +4637,29 @@ Perl_create_eval_scope(pTHX_ OP *retop, U32 flags)
     
 PP(pp_entertry)
 {
+    OP *retop = cLOGOP->op_other->op_next;
+
     RUN_PP_CATCHABLY(Perl_pp_entertry);
 
-    if(PL_op->op_flags & OPf_SPECIAL)
-        save_scalar(PL_errgv);
-
     assert(!CATCH_GET);
-    create_eval_scope(cLOGOP->op_other->op_next, 0);
+
+    if(PL_op->op_flags & OPf_SPECIAL) { /* a try {} block */
+        PERL_CONTEXT *cx;
+        const U8 gimme = GIMME_V;
+
+        save_scalar(PL_errgv);
+        CLEAR_ERRSV();
+
+        cx = cx_pushblock((CXt_EVAL|CXp_EVALBLOCK|CXp_TRY), gimme,
+                        PL_stack_sp, PL_savestack_ix);
+        cx_pusheval(cx, retop, NULL);
+
+        PL_in_eval = EVAL_INEVAL;
+    }
+    else {                              /* an eval {} block */
+        create_eval_scope(retop, 0);
+    }
+
     return PL_op->op_next;
 }
 
