@@ -38,6 +38,19 @@ no warnings 'experimental::try';
     is($caught, "Oopsie\n", 'catch block saw exception value');
 }
 
+# return inside try {} makes containing function return
+{
+    sub f
+    {
+        try {
+            return "return inside try";
+        }
+        catch ($e) { }
+        return "return from func";
+    }
+    is(f(), "return inside try", 'return inside try');
+}
+
 # Loop controls inside try {} do not emit warnings
 {
    my $warnings = "";

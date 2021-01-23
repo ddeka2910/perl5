@@ -1454,8 +1454,15 @@ S_dopoptosub_at(pTHX_ const PERL_CONTEXT *cxstk, I32 startingblock)
              * code block. Hide this faked entry from the world. */
             if (cx->cx_type & CXp_SUB_RE_FAKE)
                 continue;
-            /* FALLTHROUGH */
+            DEBUG_l( Perl_deb(aTHX_ "(dopoptosub_at(): found sub at cx=%ld)\n", (long)i));
+            return i;
+
         case CXt_EVAL:
+            if (CxTRY(cx))
+                continue;
+            DEBUG_l( Perl_deb(aTHX_ "(dopoptosub_at(): found sub at cx=%ld)\n", (long)i));
+            return i;
+
         case CXt_FORMAT:
             DEBUG_l( Perl_deb(aTHX_ "(dopoptosub_at(): found sub at cx=%ld)\n", (long)i));
             return i;
@@ -2477,7 +2484,15 @@ PP(pp_return)
 {
     dSP; dMARK;
     PERL_CONTEXT *cx;
-    const I32 cxix = dopopto_cursub();
+    I32 cxix = dopopto_cursub();
+
+again:
+    cx = &cxstack[cxix];
+    if(CxTRY(cx)) {
+        /* This was a try {}. keep going */
+        cxix = dopoptosub_at(cxstack, cxix - 1);
+        goto again;
+    }
 
     assert(cxstack_ix >= 0);
     if (cxix < cxstack_ix) {
