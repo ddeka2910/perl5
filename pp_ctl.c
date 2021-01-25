@@ -4614,6 +4614,22 @@ PP(pp_leaveeval)
     return retop;
 }
 
+PP(pp_catch)
+{
+    dTARGET;
+
+    if(!SvROK(ERRSV) && !SvTRUE(ERRSV)) {
+        /* ERRSV is neither an object nor true, therefore no exception happened */
+        return cLOGOP->op_next;
+    }
+
+    save_clearsv(&(PAD_SVl(PL_op->op_targ)));
+    sv_setsv(TARG, ERRSV);
+    CLEAR_ERRSV();
+
+    return cLOGOP->op_other;
+}
+
 /* Common code for Perl_call_sv and Perl_fold_constants, put here to keep it
    close to the related Perl_create_eval_scope.  */
 void

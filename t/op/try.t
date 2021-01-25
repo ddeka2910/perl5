@@ -33,6 +33,7 @@ no warnings 'experimental::try';
     catch ($e) {
         $x .= "catch";
         $caught = $e;
+        is($@, "", '$@ is empty within catch block');
     }
     is($x, "trycatch", 'die in try runs catch block');
     is($caught, "Oopsie\n", 'catch block saw exception value');
@@ -116,6 +117,38 @@ no warnings 'experimental::try';
     try { die "Localized value\n" } catch ($e) {}
 
     is($@, "Value before\n", 'try/catch localized $@');
+}
+
+# try/catch is not confused by false values
+{
+    my $caught;
+    try {
+        die 0;
+    }
+    catch ($e) {
+        $caught++;
+    }
+
+    ok( $caught, 'catch{} sees a false exception' );
+}
+
+# try/catch is not confused by always-false objects
+{
+    my $caught;
+    try {
+        die FALSE->new;
+    }
+    catch ($e) {
+        $caught++;
+    }
+
+    ok( $caught, 'catch{} sees a false-overload exception object' );
+
+    {
+        package FALSE;
+        use overload 'bool' => sub { 0 };
+        sub new { bless [], shift }
+    }
 }
 
 done_testing;
