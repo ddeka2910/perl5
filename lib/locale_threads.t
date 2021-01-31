@@ -13,21 +13,45 @@ BEGIN {
     $| = 1;
     eval { require POSIX; POSIX->import(qw(errno_h locale_h  unistd_h )) };
     if ($@) {
-	skip_all("could not load the POSIX module"); # running minitest?
+        skip_all("could not load the POSIX module"); # running minitest?
     }
 }
 
 use Time::HiRes qw(time usleep);
 
-my $thread_count = 5;
+my $thread_count = 600;
 my $iterations = 1;
 my $max_result_length = 10000;
+
+# Estimate as to how long to allow a thread to be ready to roll after
+# creation, so as to try to get all the threads to start as simultaneously as
+# possible
+my $per_thread_startup = .02;
+
+# For use in tuning the above value
+my $die_on_negative_sleep = 1;
+
+# We don't need to test every possible errno, but setting it to negative does
+# so
+my $max_message_catalog_entries = 10;
 
 # reset the locale environment
 local @ENV{'LANG', (grep /^LC_/, keys %ENV)};
 
+# For each category, create a list of its valid locales.  These will likely be
+# the same for all categories, but full generality is easy, so do it.
+my %valid_locales;
+foreach my $category (valid_locale_categories()) {
+    my @locales = sort C_first find_locales($category);
+    next unless @locales;
+
+    push $valid_locales{$category}->@*, @locales;
+}
+
+# This test is fast, and so ignores the limits above that apply to later tests
 SKIP: { # perl #127708
-    my @locales = grep { $_ !~ / ^ C \b | POSIX /x } find_locales('LC_MESSAGES');
+    my @locales = grep { $_ !~ / ^ C \b | POSIX /x }
+                                            $valid_locales{'LC_MESSAGES'}->@*;
     skip("No valid locale to test with", 1) unless @locales;
 
     local $ENV{LC_MESSAGES} = $locales[0];
@@ -76,6 +100,7 @@ $Data::Dumper::Sortkeys=1;
 $Data::Dumper::Useqq = 1;
 $Data::Dumper::Deepcopy = 1;
 
+my %seen;
 sub add_trials($$;$)
 {
     my $category_name = shift;
@@ -85,9 +110,11 @@ sub add_trials($$;$)
     my $category_number = eval "&POSIX::$category_name";
     die "$@" if $@;
 
-    my %results;
-    my %seen;
-    foreach my $locale (sort C_first find_locales($category_name)) {
+    #print STDERR Dumper $valid_locales{$category_name};
+    foreach my $locale ($valid_locales{$category_name}->@*) {
+
+        # Skip if this test requires a particular locale and this isn't that
+        # locale
         next if $locale_pattern && $locale !~ /$locale_pattern/;
 
         use locale;
@@ -102,16 +129,58 @@ sub add_trials($$;$)
             next;
         }
 
-        if ($seen{$result}++) {
-            push $tests_prep{$category_name}{duplicate_results}{$op}->@*, [ $locale, $result ];
+        # If already have a test that yields this result, add it to the
+        # duplicate list.  By avoiding duplicate results, we minimize the
+        # possibility of a test yielding the correct answer for the wrong
+        # reasons.  But, if this test is for a specific locale, we'd rather
+        # use this locale than some random one that yields the same result.
+        # includes if the test is for a particular locale, and we have seen
+        # this result for another particular locale
+        if (defined $seen{$result}) {
+            if (   $locale_pattern
+                && defined $seen{$result}{$category_name}
+                && defined $seen{$result}{$category_name}{$op}
+                && $seen{$result}{$category_name}{$op} ne "C")
+            {
+                my $swap_locale = $seen{$result}{$category_name}{$op};
+
+                print STDERR __FILE__, ": ", __LINE__, ": changing \$tests_prep\{$category_name}{foo} = '$result'; from $swap_locale to $locale\n";
+                $tests_prep{$category_name}{$locale}{$op} = $result;
+                $seen{$result}{$category_name}{$op} = $locale;
+
+                $locale = $swap_locale;
+            }
+            push $tests_prep{$category_name}{duplicate_results}{$op}->@*,
+                                                            [ $locale, $result ];
         }
         else {
+
+            # Here, the result isn't a duplicate of anything.  Make it the
+            # specified test for the current locale and op.
             $tests_prep{$category_name}{$locale}{$op} = $result;
+            $seen{$result}{$category_name}{$op} = $locale;
         }
+#        else {
+#
+#            # Here, we already have a test which has this result, but this new
+#            # candidate test is for a particular locale and we haven't had
+#            # seen a particular locale test with this result.
+#
+#            # Instead replace the existing test with this one, adding the
+#            # replaced one to the beginning of the duplicates list
+#            if ($locale_pattern) {
+#                unshift $tests_prep{$category_name}{duplicate_results}{$op}->@*,
+#                    [ $tests_prep{$category_name}{$locale}{$op}, $result ];
+#                $tests_prep{$category_name}{$locale}{$op} = $result;
+#            }
+#        }
     }
 }
 
-my $max_messages = 10;
+# Create a hash of the errnos:
+#          "1" => "Operation\\ not\\ permitted",
+#          "2" => "No\\ such\\ file\\ or\\ directory",
+#          etc.
 my %msg_catalog;
 foreach my $error (sort keys %!) {
     my $number = eval "Errno::$error";
@@ -120,15 +189,20 @@ foreach my $error (sort keys %!) {
     next unless "$description";
     $msg_catalog{$number} = quotemeta "$description";
 }
-my $msg_catalog = join ',', sort { $a <=> $b } keys %msg_catalog;
 
-my $get_messages_catalog = <<EOT;
-EOT
+# Then just the errnos.
+my @msg_catalog = sort { $a <=> $b } keys %msg_catalog;
 
+# Remove the excess ones.
+splice @msg_catalog, $max_message_catalog_entries
+                                            if $max_message_catalog_entries >= 0;
+my $msg_catalog = join ',', @msg_catalog;
+
+# Create some tests that are too long to be convenient one-liners.
 my $langinfo_LC_CTYPE = <<EOT;
 use I18N::Langinfo qw(langinfo CODESET);
 no warnings 'uninitialized';
-join "|",  map { langinfo(\$_) } CODESET;
+langinfo(CODESET);
 EOT
 
 my $langinfo_LC_MESSAGES = <<EOT;
@@ -147,7 +221,7 @@ my $langinfo_LC_NUMERIC = <<EOT;
 use I18N::Langinfo qw(langinfo RADIXCHAR THOUSEP);
  
 no warnings 'uninitialized';
-join "|",  map { langinfo(\$_) } RADIXCHAR; #, THOUSEP;
+join "|",  map { langinfo(\$_) } RADIXCHAR, THOUSEP;
 EOT
 
 my $langinfo_LC_TIME = <<EOT;
@@ -179,7 +253,7 @@ my $fc = quotemeta CORE::fc $uc;
 $uc =~ / \A $fc \z /xi;
 EOT
 
-foreach my $category (valid_locale_categories()) {
+foreach my $category (keys %valid_locales) {
         #print STDERR __FILE__, ": ", __LINE__, ": $category\n"; 
         #XXX we don't currently test this
     if ($category eq 'LC_ALL') {
@@ -225,7 +299,7 @@ foreach my $category (valid_locale_categories()) {
     }
 
     if ($category eq 'LC_MESSAGES') {
-        add_trials('LC_MESSAGES', "join \"\n\", map { \$! = \$_, \"\$!\" } ($msg_catalog)");
+        add_trials('LC_MESSAGES', "join \"\n\", map { \$! = \$_; \"\$!\" } ($msg_catalog)");
         add_trials('LC_MESSAGES', $langinfo_LC_MESSAGES);
         next;
     }
@@ -237,7 +311,7 @@ foreach my $category (valid_locale_categories()) {
     }
 
     if ($category eq 'LC_NUMERIC') {
-        add_trials('LC_NUMERIC', "localeconv()->{decimal_point}");
+        add_trials('LC_NUMERIC', "no warnings; 'uninitialised'; join '|', localeconv()->{decimal_point}, localeconv()->{thousands_sep}");
         add_trials('LC_NUMERIC', $langinfo_LC_NUMERIC);
 
         # Use a variable to avoid constant folding hiding real bugs
@@ -253,7 +327,7 @@ foreach my $category (valid_locale_categories()) {
 }
 
 #print STDERR __FILE__, __LINE__, ": ", Dumper \%tests_prep;
-#_END__
+#__END__
 
 my @tests;
 for my $i (1 .. $thread_count) {
@@ -313,11 +387,14 @@ for my $i (1 .. $thread_count) {
     }
 }
 
-#print STDERR __FILE__, ": ", __LINE__, ": ", Dumper \@tests;
+print STDERR __FILE__, ": ", __LINE__, ": ", Dumper \@tests;
 #__END__
 
 my $tests_expanded = Data::Dumper->Dump([ \@tests ], [ 'all_tests_ref' ]);
-my $starting_time = sprintf "%.16e", (time() + 1) * 1_000_000;
+my $starting_time = sprintf "%.16e", (    time()
+                                        + 1     # overhead insurance
+                                        + ($thread_count * $per_thread_startup))
+                                     * 1_000_000;
 
     {
         # See if multiple threads can simultaneously change the locale, and give
@@ -338,8 +415,16 @@ my $starting_time = sprintf "%.16e", (time() + 1) * 1_000_000;
             my \@threads = map +threads->create(sub {
                 #print STDERR 'thread ', threads->tid, ' started, sleeping ', $starting_time - time() * 1_000_000, \" usec\\n\";
                 my \$sleep_time = $starting_time - time() * 1_000_000;
-                usleep(\$sleep_time) if \$sleep_time > 0;
-                threads->yield();
+                if (\$sleep_time < 0) {
+                    if ($die_on_negative_sleep) {
+                        print STDERR 'thread ', threads->tid, \" would have slept for \$sleep_time usec\\n\";
+                        return 0;
+                    }
+                }
+                else {
+                    usleep(\$sleep_time) if \$sleep_time > 0;
+                    threads->yield();
+                }
 
                 #print STDERR 'thread ', threads->tid, \" taking off\\n\";
 
@@ -352,29 +437,48 @@ my $starting_time = sprintf "%.16e", (time() + 1) * 1_000_000;
 
                 my \%corrects;
 
+                # Each thread should have all its tests for a given category
+                # be from the same locale.  Set the locale for each category
                 foreach my \$category_name (sort keys \$thread_tests_ref->%*) {
                     my \$cat_num = eval \"&POSIX::\$category_name\";
                     print STDERR \"\$@\\n\" if \$@;
 
                     my \$locale = \$thread_tests_ref->{\$category_name}{locale_name};
-                    setlocale(\$cat_num, \$locale);
+                    if (! setlocale(\$cat_num, \$locale)) {
+                        print STDERR \"thread \", threads->tid(),
+                                    \" setlocale(\$cat_num, \$locale) failed\";
+                        return 0;
+                    }
+                        
                     \$corrects{\$category_name} = 0;
                 }
 
                 use locale;
 
+                # Repeatedly ...
                 for my \$iteration (1..$iterations) {
-	    	    my \$errors = 0;
+                    my \$errors = 0;
+
+                    # ... execute the tests we have set up for each category 
                     for my \$category_name (sort keys \$thread_tests_ref->%*) {
                         foreach my \$test (\$thread_tests_ref->{\$category_name}{locale_tests}->@*) {
+
+                            # We know what we are expecting
                             my \$expected = \$test->{expected};
+
+                            # And do the test.
                             my \$got = eval \$test->{op};
-                            if (\$got eq \$expected) {
+
+                            # Then verify it is the expected value
+                            if (   defined \$got
+                                && utf8::is_utf8(\$got) == utf8::is_utf8(\$expected)
+                                && \$got eq \$expected)
+                            {
                                 \$corrects{\$category_name}++;
                             }
                             else {
                                 \$|=1;
-				\$errors++;
+                                \$errors++;
                                 my \$locale
                                         = \$thread_tests_ref->{\$category_name}
                                                               {locale_name};
@@ -386,6 +490,10 @@ my $starting_time = sprintf "%.16e", (time() + 1) * 1_000_000;
                                              \" after getting\",
                                              \" \$corrects{\$category_name}\", 
                                              \" previous corrects\n\";
+                                if (\$got eq \$expected) {
+                                    print STDERR \"Only difference is UTF8ness\",
+                                                 \" of results\\n\";
+                                }
                                 print STDERR \"expected\";
                                 if (utf8::is_utf8(\$expected)) {
                                     print STDERR \" (already was UTF-8)\";
@@ -398,28 +506,34 @@ my $starting_time = sprintf "%.16e", (time() + 1) * 1_000_000;
                                 Dump \$expected;
 
                                 print STDERR \"\\ngot\";
-                                if (utf8::is_utf8(\$got)) {
-                                    print STDERR \" (already was UTF-8)\";
+                                if (! defined \$got) {
+                                    print STDERR \":\\n(undef)\\n\";
                                 }
                                 else {
-                                    utf8::upgrade(\$got);
-                                    print STDERR \" (converted to UTF-8)\";
+                                    if (utf8::is_utf8(\$got)) {
+                                        print STDERR \" (already was UTF-8)\";
+                                    }
+                                    else {
+                                        utf8::upgrade(\$got);
+                                        print STDERR \" (converted to UTF-8)\";
+                                    }
+                                    print STDERR \":\\n\";
+                                    Dump \$got;
                                 }
-                                print STDERR \":\\n\";
-                                Dump \$got;
                             }
                         }
                     }
 
-		    return 0 if \$errors;
+                    return 0 if \$errors;
                 }
 
-                return 1;
+                return 1;   # Success
 
             }, \$_), (1..$thread_count);
         \$result &= \$_->join for splice \@threads;
         print \$result",
-    1, {}, "Verify there were no failures with simultaneous running threads"
+    #1, { switches => [ -DLv ] }, "Verify there were no failures with simultaneous running threads"
+    1, { }, "Verify there were no failures with simultaneous running threads"
     );
 }
 

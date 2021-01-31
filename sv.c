@@ -15336,7 +15336,6 @@ perl_clone_using(PerlInterpreter *proto_perl, UV flags,
     PL_utf8locale	= proto_perl->Iutf8locale;
     PL_in_utf8_CTYPE_locale = proto_perl->Iin_utf8_CTYPE_locale;
     PL_in_utf8_COLLATE_locale = proto_perl->Iin_utf8_COLLATE_locale;
-    my_strlcpy(PL_locale_utf8ness, proto_perl->Ilocale_utf8ness, sizeof(PL_locale_utf8ness));
 
     assert(PL_locale_mutex_depth <= 0);
 
@@ -15665,7 +15664,7 @@ perl_clone_using(PerlInterpreter *proto_perl, UV flags,
     PL_numeric_name	= SAVEPV(proto_perl->Inumeric_name);
     PL_numeric_radix_sv	= sv_dup_inc(proto_perl->Inumeric_radix_sv, param);
 
-#  if defined(HAS_POSIX_2008_LOCALE)
+#  if defined(USE_POSIX_2008_LOCALE)
     PL_underlying_numeric_obj = NULL;
 #  endif
 #endif /* !USE_LOCALE_NUMERIC */

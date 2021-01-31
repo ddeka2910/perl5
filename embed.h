@@ -333,6 +333,7 @@
 #define my_setenv(a,b)		Perl_my_setenv(aTHX_ a,b)
 #define my_socketpair		Perl_my_socketpair
 #define my_strftime(a,b,c,d,e,f,g,h,i,j)	Perl_my_strftime(aTHX_ a,b,c,d,e,f,g,h,i,j)
+#define my_strftime8(a,b,c,d,e,f,g,h,i,j,k)	Perl_my_strftime8(aTHX_ a,b,c,d,e,f,g,h,i,j,k)
 #define my_strtod		Perl_my_strtod
 #define newANONATTRSUB(a,b,c,d)	Perl_newANONATTRSUB(aTHX_ a,b,c,d)
 #define newANONHASH(a)		Perl_newANONHASH(aTHX_ a)
@@ -891,8 +892,8 @@
 #define sv_dup(a,b)		Perl_sv_dup(aTHX_ a,b)
 #define sv_dup_inc(a,b)		Perl_sv_dup_inc(aTHX_ a,b)
 #endif
-#if defined(USE_LOCALE)		    && (   defined(PERL_IN_LOCALE_C)	        || defined(PERL_IN_MG_C)		|| defined (PERL_EXT_POSIX)		|| defined (PERL_EXT_LANGINFO))
-#define _is_cur_LC_category_utf8(a)	Perl__is_cur_LC_category_utf8(aTHX_ a)
+#if defined(USE_LOCALE)
+#define force_locale_unlock	Perl_force_locale_unlock
 #endif
 #if defined(USE_LOCALE_COLLATE)
 #define sv_collxfrm_flags(a,b,c)	Perl_sv_collxfrm_flags(aTHX_ a,b,c)
@@ -947,6 +948,11 @@
 #define get_prop_definition(a)	Perl_get_prop_definition(aTHX_ a)
 #define get_prop_values		Perl_get_prop_values
 #define grok_atoUV		Perl_grok_atoUV
+#define is_LC_MESSAGES_string_utf8(a,b)	Perl_is_LC_MESSAGES_string_utf8(aTHX_ a,b)
+#define is_LC_MONETARY_string_utf8(a,b)	Perl_is_LC_MONETARY_string_utf8(aTHX_ a,b)
+#define is_LC_NUMERIC_string_utf8(a,b)	Perl_is_LC_NUMERIC_string_utf8(aTHX_ a,b)
+#define is_LC_TIME_string_utf8(a,b)	Perl_is_LC_TIME_string_utf8(aTHX_ a,b)
+#define is_locale_utf8(a)	Perl_is_locale_utf8(aTHX_ a)
 #define load_charnames(a,b,c,d)	Perl_load_charnames(aTHX_ a,b,c,d)
 #define mg_find_mglob(a)	Perl_mg_find_mglob(aTHX_ a)
 #define multiconcat_stringify(a)	Perl_multiconcat_stringify(aTHX_ a)
@@ -1025,6 +1031,9 @@
 #    if defined(PERL_IN_REGCOMP_C)
 #define dump_regex_sets_structures(a,b,c,d)	S_dump_regex_sets_structures(aTHX_ a,b,c,d)
 #    endif
+#  endif
+#  if defined(HAS_LOCALECONV) || defined(HAS_LOCALECONV_L)
+#define my_localeconv(a)	Perl_my_localeconv(aTHX_ a)
 #  endif
 #  if defined(PERL_ANY_COW)
 #define sv_setsv_cow(a,b)	Perl_sv_setsv_cow(aTHX_ a,b)
@@ -1404,7 +1413,7 @@
 #define my_clearenv()		Perl_my_clearenv(aTHX)
 #define my_lstat_flags(a)	Perl_my_lstat_flags(aTHX_ a)
 #define my_stat_flags(a)	Perl_my_stat_flags(aTHX_ a)
-#define my_strerror(a)		Perl_my_strerror(aTHX_ a)
+#define my_strerror(a,b)	Perl_my_strerror(aTHX_ a,b)
 #define my_unexec()		Perl_my_unexec(aTHX)
 #define newATTRSUB_x(a,b,c,d,e,f)	Perl_newATTRSUB_x(aTHX_ a,b,c,d,e,f)
 #define newSTUB(a,b)		Perl_newSTUB(aTHX_ a,b)
@@ -1489,6 +1498,13 @@
 #define yyparse(a)		Perl_yyparse(aTHX_ a)
 #define yyquit()		Perl_yyquit(aTHX)
 #define yyunlex()		Perl_yyunlex(aTHX)
+#  if ! defined(USE_QUERYLOCALE)
+#    if !(defined(WIN32))
+#      if defined(PERL_IN_LOCALE_C)
+#define query_PL_curlocales_i	S_query_PL_curlocales_i
+#      endif
+#    endif
+#  endif
 #  if !(defined(DEBUGGING))
 #    if !defined(NV_PRESERVES_UV)
 #      if defined(PERL_IN_SV_C)
@@ -1497,7 +1513,13 @@
 #    endif
 #  endif
 #  if !(defined(HAS_NL_LANGINFO))
+#    if defined(HAS_MBTOWC) || defined(HAS_MBRTOWC)
+#      if defined(PERL_IN_LOCALE_C)
+#define get_nl_item_category_index	S_get_nl_item_category_index
+#      endif
+#    endif
 #    if defined(PERL_IN_LOCALE_C)
+#define get_locale_string_utf8ness(a,b,c)	S_get_locale_string_utf8ness(aTHX_ a,b,c)
 #define my_nl_langinfo(a,b)	S_my_nl_langinfo(aTHX_ a,b)
 #    endif
 #  endif
@@ -1513,7 +1535,7 @@
 #        if defined(USE_POSIX_2008_LOCALE)
 #define calculate_LC_ALL(a)	S_calculate_LC_ALL(aTHX_ a)
 #define find_locale_from_environment(a)	S_find_locale_from_environment(aTHX_ a)
-#define setlocale_from_aggregate_LC_ALL(a)	S_setlocale_from_aggregate_LC_ALL(aTHX_ a)
+#define setlocale_from_aggregate_LC_ALL(a,b)	S_setlocale_from_aggregate_LC_ALL(aTHX_ a,b)
 #        endif
 #      endif
 #    endif
@@ -1521,14 +1543,11 @@
 #  if !(defined(WIN32))
 #    if defined(PERL_IN_LOCALE_C)
 #      if defined(USE_POSIX_2008_LOCALE)
-#define emulate_setlocale	S_emulate_setlocale
-#define my_querylocale		S_my_querylocale
+#define emulate_setlocale_i	S_emulate_setlocale_i
+#define my_querylocale_i	S_my_querylocale_i
 #        if defined(USE_QUERYLOCALE)
 #define calculate_LC_ALL(a)	S_calculate_LC_ALL(aTHX_ a)
 #        endif
-#      endif
-#      if defined(USE_POSIX_2008_LOCALE)				     || defined(USE_THREAD_SAFE_LOCALE_EMULATION)
-#define query_PL_curlocales	S_query_PL_curlocales
 #      endif
 #    endif
 #  endif
@@ -1622,6 +1641,8 @@
 #  endif
 #  if defined(HAS_NL_LANGINFO)
 #    if defined(PERL_IN_LOCALE_C)
+#define get_locale_string_utf8ness(a,b,c)	S_get_locale_string_utf8ness(aTHX_ a,b,c)
+#define get_nl_item_category_index	S_get_nl_item_category_index
 #define my_nl_langinfo(a,b)	S_my_nl_langinfo(aTHX_ a,b)
 #    endif
 #  endif
@@ -1723,10 +1744,16 @@
 #define new_collate(a)		S_new_collate(aTHX_ a)
 #define new_ctype(a)		S_new_ctype(aTHX_ a)
 #define new_numeric(a)		S_new_numeric(aTHX_ a)
-#define restore_switched_locale(a,b)	S_restore_switched_locale(aTHX_ a,b)
+#define restore_switched_locale_i(a,b)	S_restore_switched_locale_i(aTHX_ a,b)
 #define set_numeric_radix(a)	S_set_numeric_radix(aTHX_ a)
+#define setlocale_failure_panic_i	S_setlocale_failure_panic_i
 #define stdize_locale(a)	S_stdize_locale(aTHX_ a)
-#define switch_category_locale_to_template(a,b,c)	S_switch_category_locale_to_template(aTHX_ a,b,c)
+#define switch_locales_i(a,b)	S_switch_locales_i(aTHX_ a,b)
+#      if defined(USE_LOCALE_THREADS)					     && ! defined(USE_THREAD_SAFE_LOCALE)				     && ! defined(USE_THREAD_SAFE_LOCALE_EMULATION)
+#define less_dicey_bool_setlocale(a,b)	S_less_dicey_bool_setlocale(aTHX_ a,b)
+#define less_dicey_setlocale(a,b)	S_less_dicey_setlocale(aTHX_ a,b)
+#define less_dicey_void_setlocale(a,b,c)	S_less_dicey_void_setlocale(aTHX_ a,b,c)
+#      endif
 #    endif
 #    if defined(WIN32)
 #define win32_setlocale(a,b)	S_win32_setlocale(aTHX_ a,b)

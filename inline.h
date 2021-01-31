@@ -123,7 +123,7 @@ PERL_STATIC_INLINE int
 Perl_iswordchar_(int c)
 {
     dTHX;
-    DEBUG_L(PerlIO_printf(Perl_debug_log, "%s:%d: is %x a \\w in locale %s = %d\n"
+    DEBUG_Lv(PerlIO_printf(Perl_debug_log, "%s:%d: is %x a \\w in locale %s = %d\n"
                       , __FILE__, __LINE__, c, setlocale(LC_CTYPE, NULL), cBOOL(((c) == '_') || isalnum(c))));
     return UNLIKELY((c) == '_') || isalnum(c);
 }
@@ -151,7 +151,7 @@ Perl_call_clib_char_fcn_(int classnum, int character)
 
     LC_CTYPE_LOCK;
 
-    DEBUG_Lv(PerlIO_printf(Perl_debug_log, "%s:%d: finding if %x is member of %d in locale %s, ctype=%d"
+    DEBUG_Lv(PerlIO_printf(Perl_debug_log, "%s:%d: finding if %x is member of %d in locale %s, ctype=%d\n"
                       , __FILE__, __LINE__, character, classnum, setlocale(LC_CTYPE, NULL), IN_UTF8_CTYPE_LOCALE));
     retval = PL_clib_char_fcns[classnum](character);
     DEBUG_Lv(PerlIO_printf(Perl_debug_log, "; answer is %d\n", retval));

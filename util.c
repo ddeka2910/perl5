@@ -4232,12 +4232,12 @@ giving localized results.
   ** tmpbuf overflows.  Basically we want to allocate a buffer
   ** and try repeatedly.  The reason why it is so complicated
   ** is that getting a return value of 0 from strftime can indicate
-  ** one of the following:
+  ** any one of the following:
   ** 1. buffer overflowed,
   ** 2. illegal conversion specifier, or
-  ** 3. the format string specifies nothing to be returned(not
+  ** 3. the format string specifies nothing to be returned (not
   **	  an error).  This could be because format is an empty string
-  **    or it specifies %p that yields an empty string in some locale.
+  **    or it specifies %p which yields an empty string in some locales.
   ** If there is a better way to make it portable, go ahead by
   ** all means.
   */
@@ -4261,8 +4261,20 @@ giving localized results.
         break;
       /* heuristic to prevent out-of-memory errors */
       if (bufsize > 100*fmtlen) {
-        Safefree(buf);
-        buf = NULL;
+
+        /* With this "%p" known to legally return nothing, assume that was
+         * the case if we can't make the buffer large enough to get a non-zero
+         * return.  For any other formats, assume it is an error.  (It probably
+         * Look for others, like ERA  XXX
+         * is an illegal conversion specifier.) */
+        if (strEQ(fmt, "%p")) {
+            Renew(buf, 1, char);
+            *buf = '\0';
+        }
+        else {
+            Safefree(buf);
+            buf = NULL;
+        }
         break;
       }
       bufsize *= 2;

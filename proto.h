@@ -1644,6 +1644,18 @@ PERL_STATIC_INLINE Size_t	Perl_isUTF8_CHAR(const U8 * const s0, const U8 * const
 	assert(s0); assert(e)
 #endif
 
+PERL_CALLCONV int	Perl_is_LC_MESSAGES_string_utf8(pTHX_ const char * string, const bool known_utf8);
+#define PERL_ARGS_ASSERT_IS_LC_MESSAGES_STRING_UTF8	\
+	assert(string)
+PERL_CALLCONV int	Perl_is_LC_MONETARY_string_utf8(pTHX_ const char * string, const bool known_utf8);
+#define PERL_ARGS_ASSERT_IS_LC_MONETARY_STRING_UTF8	\
+	assert(string)
+PERL_CALLCONV int	Perl_is_LC_NUMERIC_string_utf8(pTHX_ const char * string, const bool known_utf8);
+#define PERL_ARGS_ASSERT_IS_LC_NUMERIC_STRING_UTF8	\
+	assert(string)
+PERL_CALLCONV int	Perl_is_LC_TIME_string_utf8(pTHX_ const char * string, const bool known_utf8);
+#define PERL_ARGS_ASSERT_IS_LC_TIME_STRING_UTF8	\
+	assert(string)
 /* PERL_CALLCONV bool	is_ascii_string(const U8* const s, STRLEN len)
 			__attribute__warn_unused_result__
 			__attribute__pure__; */
@@ -1665,6 +1677,9 @@ PERL_STATIC_INLINE bool	Perl_is_c9strict_utf8_string_loclen(const U8 *s, STRLEN 
 			__attribute__pure__; */
 #define PERL_ARGS_ASSERT_IS_INVARIANT_STRING
 
+PERL_CALLCONV bool	Perl_is_locale_utf8(pTHX_ const char * locale);
+#define PERL_ARGS_ASSERT_IS_LOCALE_UTF8	\
+	assert(locale)
 PERL_CALLCONV I32	Perl_is_lvalue_sub(pTHX)
 			__attribute__warn_unused_result__;
 #define PERL_ARGS_ASSERT_IS_LVALUE_SUB
@@ -2017,6 +2032,8 @@ PERL_CALLCONV Malloc_t	Perl_malloc(MEM_SIZE nbytes)
 
 PERL_CALLCONV I32 *	Perl_markstack_grow(pTHX);
 #define PERL_ARGS_ASSERT_MARKSTACK_GROW
+PERL_CALLCONV wchar_t	Perl_mbtowc(pTHX_ const wchar_t * pwc, const char * s, const Size_t len);
+#define PERL_ARGS_ASSERT_MBTOWC
 PERL_CALLCONV SV*	Perl_mess(pTHX_ const char* pat, ...)
 			__attribute__format__(__printf__,pTHX_1,pTHX_2);
 #define PERL_ARGS_ASSERT_MESS	\
@@ -2186,11 +2203,17 @@ PERL_CALLCONV int	Perl_my_socketpair(int family, int type, int protocol, int fd[
 #define PERL_ARGS_ASSERT_MY_STAT
 PERL_CALLCONV I32	Perl_my_stat_flags(pTHX_ const U32 flags);
 #define PERL_ARGS_ASSERT_MY_STAT_FLAGS
-PERL_CALLCONV char*	Perl_my_strerror(pTHX_ const int errnum);
-#define PERL_ARGS_ASSERT_MY_STRERROR
+PERL_CALLCONV char*	Perl_my_strerror(pTHX_ const int errnum, bool * is_utf8);
+#define PERL_ARGS_ASSERT_MY_STRERROR	\
+	assert(is_utf8)
 PERL_CALLCONV char *	Perl_my_strftime(pTHX_ const char *fmt, int sec, int min, int hour, int mday, int mon, int year, int wday, int yday, int isdst)
 			__attribute__format__(__strftime__,pTHX_1,0);
 #define PERL_ARGS_ASSERT_MY_STRFTIME	\
+	assert(fmt)
+
+PERL_CALLCONV char *	Perl_my_strftime8(pTHX_ const char *fmt, int sec, int min, int hour, int mday, int mon, int year, int wday, int yday, int isdst, int *utf8ness)
+			__attribute__format__(__strftime__,pTHX_1,0);
+#define PERL_ARGS_ASSERT_MY_STRFTIME8	\
 	assert(fmt)
 
 PERL_CALLCONV NV	Perl_my_strtod(const char * const s, char ** e)
@@ -4185,6 +4208,14 @@ PERL_STATIC_INLINE void *	S_my_memrchr(const char * s, const char c, const STRLE
 	assert(s)
 #endif
 #endif
+#if ! defined(USE_QUERYLOCALE)
+#  if !(defined(WIN32))
+#    if defined(PERL_IN_LOCALE_C)
+STATIC const char *	S_query_PL_curlocales_i(const unsigned int index);
+#define PERL_ARGS_ASSERT_QUERY_PL_CURLOCALES_I
+#    endif
+#  endif
+#endif
 #if !(!defined(PERL_EXT_RE_BUILD))
 #  if defined(PERL_IN_REGCOMP_C) || defined(PERL_IN_REGEXEC_C)
 PERL_CALLCONV SV*	Perl_get_re_gclass_nonbitmap_data(pTHX_ const regexp *prog, const struct regnode *node, bool doinit, SV **listsvp, SV **lonly_utf8_locale, SV **output_invlist);
@@ -4204,10 +4235,22 @@ STATIC int	S_sv_2iuv_non_preserve(pTHX_ SV *const sv);
 #if !(defined(HAS_NL_LANGINFO) && defined(PERL_LANGINFO_H))
 PERL_CALLCONV const char*	Perl_langinfo(const int item);
 #define PERL_ARGS_ASSERT_PERL_LANGINFO
+PERL_CALLCONV const char*	Perl_langinfo8(const int item, int * utf8ness);
+#define PERL_ARGS_ASSERT_PERL_LANGINFO8	\
+	assert(utf8ness)
 #endif
 #if !(defined(HAS_NL_LANGINFO))
+#  if defined(HAS_MBTOWC) || defined(HAS_MBRTOWC)
+#    if defined(PERL_IN_LOCALE_C)
+STATIC unsigned	S_get_nl_item_category_index(const int item);
+#define PERL_ARGS_ASSERT_GET_NL_ITEM_CATEGORY_INDEX
+#    endif
+#  endif
 #  if defined(PERL_IN_LOCALE_C)
-STATIC const char*	S_my_nl_langinfo(pTHX_ const int item, const bool toggle);
+STATIC unsigned	S_get_locale_string_utf8ness(pTHX_ const int item, const char * string, const bool known_utf8);
+#define PERL_ARGS_ASSERT_GET_LOCALE_STRING_UTF8NESS	\
+	assert(string)
+STATIC const char*	S_my_nl_langinfo(pTHX_ const int item, int * utf8ness);
 #define PERL_ARGS_ASSERT_MY_NL_LANGINFO
 #  endif
 #endif
@@ -4231,7 +4274,7 @@ STATIC const char *	S_calculate_LC_ALL(pTHX_ const char ** individ_locales);
 	assert(individ_locales)
 STATIC const char *	S_find_locale_from_environment(pTHX_ const unsigned int index);
 #define PERL_ARGS_ASSERT_FIND_LOCALE_FROM_ENVIRONMENT
-STATIC const char *	S_setlocale_from_aggregate_LC_ALL(pTHX_ const char * locale);
+STATIC const char *	S_setlocale_from_aggregate_LC_ALL(pTHX_ const char * locale, const line_t line);
 #define PERL_ARGS_ASSERT_SETLOCALE_FROM_AGGREGATE_LC_ALL	\
 	assert(locale)
 #      endif
@@ -4241,19 +4284,15 @@ STATIC const char *	S_setlocale_from_aggregate_LC_ALL(pTHX_ const char * locale)
 #if !(defined(WIN32))
 #  if defined(PERL_IN_LOCALE_C)
 #    if defined(USE_POSIX_2008_LOCALE)
-STATIC const char*	S_emulate_setlocale(const unsigned int index, const char* locale, const bool recalc_LC_ALL);
-#define PERL_ARGS_ASSERT_EMULATE_SETLOCALE	\
+STATIC const char*	S_emulate_setlocale_i(const unsigned int index, const char* locale, const bool recalc_LC_ALL, const line_t line);
+#define PERL_ARGS_ASSERT_EMULATE_SETLOCALE_I	\
 	assert(locale)
-STATIC const char*	S_my_querylocale(const unsigned int index, const locale_t cur_obj);
-#define PERL_ARGS_ASSERT_MY_QUERYLOCALE
+STATIC const char*	S_my_querylocale_i(const unsigned int index, const locale_t cur_obj);
+#define PERL_ARGS_ASSERT_MY_QUERYLOCALE_I
 #      if defined(USE_QUERYLOCALE)
 STATIC const char *	S_calculate_LC_ALL(pTHX_ const locale_t cur_obj);
 #define PERL_ARGS_ASSERT_CALCULATE_LC_ALL
 #      endif
-#    endif
-#    if defined(USE_POSIX_2008_LOCALE)				     || defined(USE_THREAD_SAFE_LOCALE_EMULATION)
-STATIC const char *	S_query_PL_curlocales(const unsigned int index);
-#define PERL_ARGS_ASSERT_QUERY_PL_CURLOCALES
 #    endif
 #  endif
 #endif
@@ -4266,7 +4305,7 @@ PERL_CALLCONV_NO_RET int	Perl_magic_regdatum_set(pTHX_ SV* sv, MAGIC* mg)
 #endif
 #if !defined(EBCDIC)
 #ifndef PERL_NO_INLINE_FUNCTIONS
-PERL_STATIC_INLINE unsigned int	Perl_variant_byte_number(PERL_UINTMAX_T word)
+PERL_STATIC_INLINE unsigned	Perl_variant_byte_number(PERL_UINTMAX_T word)
 			__attribute__warn_unused_result__;
 #define PERL_ARGS_ASSERT_VARIANT_BYTE_NUMBER
 #endif
@@ -4681,6 +4720,11 @@ PERL_CALLCONV void	Perl_dump_sv_child(pTHX_ SV *sv);
 #define PERL_ARGS_ASSERT_DUMP_SV_CHILD	\
 	assert(sv)
 #endif
+#if defined(HAS_LOCALECONV) || defined(HAS_LOCALECONV_L)
+PERL_CALLCONV void	Perl_my_localeconv(pTHX_ struct lconv *retbuf);
+#define PERL_ARGS_ASSERT_MY_LOCALECONV	\
+	assert(retbuf)
+#endif
 #if defined(HAS_MSG) || defined(HAS_SEM) || defined(HAS_SHM)
 PERL_CALLCONV I32	Perl_do_ipcctl(pTHX_ I32 optype, SV** mark, SV** sp);
 #define PERL_ARGS_ASSERT_DO_IPCCTL	\
@@ -4703,13 +4747,21 @@ PERL_CALLCONV I32	Perl_do_shmio(pTHX_ I32 optype, SV** mark, SV** sp);
 #endif
 #if defined(HAS_NL_LANGINFO)
 #  if defined(PERL_IN_LOCALE_C)
-STATIC const char*	S_my_nl_langinfo(pTHX_ const nl_item item, const bool toggle);
+STATIC unsigned	S_get_locale_string_utf8ness(pTHX_ const nl_item item, const char * string, const bool known_utf8);
+#define PERL_ARGS_ASSERT_GET_LOCALE_STRING_UTF8NESS	\
+	assert(string)
+STATIC unsigned	S_get_nl_item_category_index(const nl_item item);
+#define PERL_ARGS_ASSERT_GET_NL_ITEM_CATEGORY_INDEX
+STATIC const char*	S_my_nl_langinfo(pTHX_ const nl_item item, int * utf8ness);
 #define PERL_ARGS_ASSERT_MY_NL_LANGINFO
 #  endif
 #endif
 #if defined(HAS_NL_LANGINFO) && defined(PERL_LANGINFO_H)
 PERL_CALLCONV const char*	Perl_langinfo(const nl_item item);
 #define PERL_ARGS_ASSERT_PERL_LANGINFO
+PERL_CALLCONV const char*	Perl_langinfo8(const nl_item item, int * utf8ness);
+#define PERL_ARGS_ASSERT_PERL_LANGINFO8	\
+	assert(utf8ness)
 #endif
 #if defined(HAS_PIPE)
 PERL_CALLCONV int	Perl_PerlProc_pipe_cloexec(pTHX_ int *pipefd)
@@ -5130,7 +5182,7 @@ PERL_CALLCONV SV*	Perl_hfree_next_entry(pTHX_ HV *hv, STRLEN *indexp);
 #endif
 #if defined(PERL_IN_LOCALE_C)
 #ifndef PERL_NO_INLINE_FUNCTIONS
-PERL_STATIC_INLINE const char *	S_save_to_buffer(const char * string, char **buf, Size_t *buf_size, const Size_t offset)
+PERL_STATIC_INLINE const char *	S_save_to_buffer(const char * string, const char **buf, Size_t *buf_size, const Size_t offset)
 			__attribute__warn_unused_result__;
 #define PERL_ARGS_ASSERT_SAVE_TO_BUFFER	\
 	assert(buf_size)
@@ -5139,7 +5191,7 @@ PERL_STATIC_INLINE const char *	S_save_to_buffer(const char * string, char **buf
 #  if defined(USE_LOCALE)
 STATIC const char*	S_category_name(const int category);
 #define PERL_ARGS_ASSERT_CATEGORY_NAME
-STATIC unsigned int	S_get_category_index(const int category, const char * locale);
+STATIC unsigned	S_get_category_index(const int category, const char * locale);
 #define PERL_ARGS_ASSERT_GET_CATEGORY_INDEX
 STATIC void	S_new_LC_ALL(pTHX_ const char* newnum);
 #define PERL_ARGS_ASSERT_NEW_LC_ALL
@@ -5150,15 +5202,32 @@ STATIC void	S_new_ctype(pTHX_ const char* newctype);
 	assert(newctype)
 STATIC void	S_new_numeric(pTHX_ const char* newnum);
 #define PERL_ARGS_ASSERT_NEW_NUMERIC
-STATIC void	S_restore_switched_locale(pTHX_ const int category, const char * const original_locale);
-#define PERL_ARGS_ASSERT_RESTORE_SWITCHED_LOCALE
+STATIC void	S_restore_switched_locale_i(pTHX_ const unsigned cat_index, const char * original_locale);
+#define PERL_ARGS_ASSERT_RESTORE_SWITCHED_LOCALE_I
 STATIC void	S_set_numeric_radix(pTHX_ const bool use_locale);
 #define PERL_ARGS_ASSERT_SET_NUMERIC_RADIX
+PERL_STATIC_NO_RET void	S_setlocale_failure_panic_i(const unsigned int cat_index, const char * current, const char * failed, const line_t caller_0_line, const line_t caller_1_line)
+			__attribute__noreturn__;
+#define PERL_ARGS_ASSERT_SETLOCALE_FAILURE_PANIC_I	\
+	assert(failed)
+
 STATIC char*	S_stdize_locale(pTHX_ char* locs);
 #define PERL_ARGS_ASSERT_STDIZE_LOCALE	\
 	assert(locs)
-STATIC const char*	S_switch_category_locale_to_template(pTHX_ const int switch_category, const int template_category, const char * template_locale);
-#define PERL_ARGS_ASSERT_SWITCH_CATEGORY_LOCALE_TO_TEMPLATE
+STATIC const char *	S_switch_locales_i(pTHX_ const unsigned switch_cat_index, const char * new_locale);
+#define PERL_ARGS_ASSERT_SWITCH_LOCALES_I	\
+	assert(new_locale)
+#    if defined(USE_LOCALE_THREADS)					     && ! defined(USE_THREAD_SAFE_LOCALE)				     && ! defined(USE_THREAD_SAFE_LOCALE_EMULATION)
+STATIC bool	S_less_dicey_bool_setlocale(pTHX_ const int cat, const char * locale);
+#define PERL_ARGS_ASSERT_LESS_DICEY_BOOL_SETLOCALE	\
+	assert(locale)
+STATIC char *	S_less_dicey_setlocale(pTHX_ const int cat, const char * locale);
+#define PERL_ARGS_ASSERT_LESS_DICEY_SETLOCALE	\
+	assert(locale)
+STATIC bool	S_less_dicey_void_setlocale(pTHX_ const int cat, const char * locale, const line_t line);
+#define PERL_ARGS_ASSERT_LESS_DICEY_VOID_SETLOCALE	\
+	assert(locale)
+#    endif
 #  endif
 #  if defined(WIN32)
 STATIC char*	S_win32_setlocale(pTHX_ int category, const char* locale);
@@ -6832,9 +6901,9 @@ PERL_CALLCONV SV*	Perl_sv_dup_inc(pTHX_ const SV *const ssv, CLONE_PARAMS *const
 	assert(param)
 
 #endif
-#if defined(USE_LOCALE)		    && (   defined(PERL_IN_LOCALE_C)	        || defined(PERL_IN_MG_C)		|| defined (PERL_EXT_POSIX)		|| defined (PERL_EXT_LANGINFO))
-PERL_CALLCONV bool	Perl__is_cur_LC_category_utf8(pTHX_ int category);
-#define PERL_ARGS_ASSERT__IS_CUR_LC_CATEGORY_UTF8
+#if defined(USE_LOCALE)
+PERL_CALLCONV void	Perl_force_locale_unlock(void);
+#define PERL_ARGS_ASSERT_FORCE_LOCALE_UNLOCK
 #endif
 #if defined(USE_LOCALE_COLLATE)
 PERL_CALLCONV int	Perl_magic_freecollxfrm(pTHX_ SV* sv, MAGIC* mg);

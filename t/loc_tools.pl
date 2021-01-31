@@ -147,7 +147,7 @@ sub _trylocale ($$$$) { # For use only by other functions in this file!
     foreach my $category (@$categories) {
         die "category '$category' must instead be a number"
                                             unless $category =~ / ^ -? \d+ $ /x;
-        if ($category_name{$category} eq 'TYPE') {
+        if ($category_name{$category} eq 'CTYPE') {
             $has_ctype = 1;
         }
         elsif ($category_name{$category} eq 'ALL') {
@@ -162,8 +162,7 @@ sub _trylocale ($$$$) { # For use only by other functions in this file!
     }
     push @sorted, $category_number{'COLLATE'} if $has_collate;
     push @sorted, $category_number{'ALL'} if $has_all;
-    unshift @sorted, $category_number{'CTYPE'} if $has_all || ! $allow_incompatible;
-    #print STDERR __FILE__, ": ", __LINE__, ": ", Dumper \@sorted;
+    unshift @sorted, $category_number{'CTYPE'} if $has_ctype || ! $allow_incompatible;
 
     foreach my $category (@sorted) {
         return unless setlocale($category, $locale);
@@ -366,7 +365,10 @@ sub find_locales ($;$) {
     my @categories = (ref $input_categories)
                       ? $input_categories->@*
                       : $input_categories;
+    use Data::Dumper;
+    #print STDERR __FILE__, ": ", __LINE__, ": ", "finding\n", Dumper \@categories;
     return unless locales_enabled(\@categories);
+    #print STDERR __FILE__, ": ", __LINE__, ": ", "enabled, (allow incompat=$allow_incompatible)\n";
 
     # Note, the subroutine call above converts the $categories into a form
     # suitable for _trylocale().
@@ -396,6 +398,7 @@ sub find_locales ($;$) {
     return sort @Locale if defined $Config{d_setlocale_accepts_any_locale_name};
 
     foreach (1..16) {
+        #print STDERR __FILE__, ": ", __LINE__, ": ", "foreach\n";
         _trylocale("ISO8859-$_", \@categories, \@Locale, $allow_incompatible);
         _trylocale("iso8859$_", \@categories, \@Locale, $allow_incompatible);
         _trylocale("iso8859-$_", \@categories, \@Locale, $allow_incompatible);
@@ -423,9 +426,11 @@ sub find_locales ($;$) {
             # locales will cause all IO hadles to default to (assume) utf8
             next unless utf8::valid($_);
             chomp;
+            #print STDERR __FILE__, ": ", __LINE__, ": ", "trying $_\n";
             _trylocale($_, \@categories, \@Locale, $allow_incompatible);
         }
         close(LOCALES);
+            #print STDERR __FILE__, ": ", __LINE__, ": ", "done \n";
     } elsif ($^O eq 'VMS'
              && defined($ENV{'SYS$I18N_LOCALE'})
              && -d 'SYS$I18N_LOCALE')

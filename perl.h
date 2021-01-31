@@ -4629,7 +4629,7 @@ Gid_t getegid (void);
 #  define DEBUG_Xv(a) DEBUG__(DEBUG_Xv_TEST, a)
 #  define DEBUG_Uv(a) DEBUG__(DEBUG_Uv_TEST, a)
 #  define DEBUG_Pv(a) DEBUG__(DEBUG_Pv_TEST, a)
-#  define DEBUG_Lv(a) DEBUG__(DEBUG_Lv_TEST, a)
+#  define DEBUG_Lv(a) DEBUG__(DEBUG_Lv_TEST, ({ PerlIO_printf(Perl_debug_log, "%p: ", aTHX); a; }))
 #  define DEBUG_yv(a) DEBUG__(DEBUG_yv_TEST, a)
 
 #  define DEBUG_S(a) DEBUG__(DEBUG_S_TEST, a)
@@ -4641,7 +4641,7 @@ Gid_t getegid (void);
 #  define DEBUG_q(a) DEBUG__(DEBUG_q_TEST, a)
 #  define DEBUG_M(a) DEBUG__(DEBUG_M_TEST, a)
 #  define DEBUG_B(a) DEBUG__(DEBUG_B_TEST, a)
-#  define DEBUG_L(a) DEBUG__(DEBUG_L_TEST, a)
+#  define DEBUG_L(a) DEBUG__(DEBUG_L_TEST, ({ PerlIO_printf(Perl_debug_log, "%p: ", aTHX); a; }))
 #  define DEBUG_i(a) DEBUG__(DEBUG_i_TEST, a)
 #  define DEBUG_y(a) DEBUG__(DEBUG_y_TEST, a)
 
@@ -6692,6 +6692,7 @@ the plain locale pragma without a parameter (S<C<use locale>>) is in effect.
                         "%s: %d: avoided locking locale; new depth=%d\n",   \
                         __FILE__, __LINE__, PL_locale_mutex_depth));        \
                 if (cond_to_panic_if_already_locked) {                      \
+                    force_locale_unlock();                                  \
                     Perl_croak_nocontext("panic: %s: %d: Trying to change"  \
                                          " LC_NUMERIC incompatibly",        \
                                          __FILE__, __LINE__);               \
@@ -6731,6 +6732,10 @@ the plain locale pragma without a parameter (S<C<use locale>>) is in effect.
                             freelocale(PL_C_locale_obj);                    \
                             PL_C_locale_obj = (locale_t) NULL;              \
                         }                                                   \
+                        /*if (PL_locale_mutex_depth > 0) {                    \
+                            MUTEX_UNLOCK(&PL_locale_mutex);                 \
+                        }                                                   \
+                        */\
                     } STMT_END
 #  else
 #    define LOCALE_TERM_POSIX_2008_  NOOP
@@ -6755,44 +6760,13 @@ the plain locale pragma without a parameter (S<C<use locale>>) is in effect.
         } STMT_END
 
    /* Now see if more than the basic locking is needed.  It is if the
-    * platform isn't using thread-safe locales or any of the needed libc
-    * functions doesn't have a reentrant version */
-#  if (  ! defined(USE_THREAD_SAFE_LOCALE)                              \
-       || (   defined(HAS_LOCALECONV)                                   \
-           && (  ! defined(HAS_LOCALECONV_L)                            \
-               ||  defined(TS_W32_BROKEN_LOCALECONV)))                  \
-       || (   defined(HAS_NL_LANGINFO)                                  \
-           && ! defined(HAS_THREAD_SAFE_NL_LANGINFO_L))                 \
-       || (defined(HAS_MBLEN)  && ! defined(HAS_MBRLEN))                \
-       || (defined(HAS_MBTOWC) && ! defined(HAS_MBRTOWC))               \
-       || (defined(HAS_WCTOMB) && ! defined(HAS_WCRTOMB)))
-
-
-   /* It's actually likely we'll need more than basic locking (on threaded
-    * perls).  This is because localeconv_l() is uncommon, and judging by bug
-    * reports on the web, some earlier library localeconv_l versions were
-    * broken, so perhaps a probe is in order for that, but it would be a pain
-    * The Posix standard doesn't even require nl_langinfo_l() to be fully
-    * thread-safe, so a Configure probe was written for that.
-    *
-    * We currently use a single mutex for all these cases.  This solves both
-    * the problem of another thread changing the locale, and the buffer being
-    * overwritten (the code copies the results to a safe place before releasing
-    * the mutex).  Ideally, for locale thread-safe platforms where the only
-    * issue is another thread clobbering the function's static buffer, there
-    * would be a separate mutex for each such buffer.  Otherwise, things get
-    * locked that don't need to.  But, it is not expected that any of these
-    * will be called frequently, and the locked interval should be short, and
-    * modern platforms will have reentrant versions (which don't lock) for
-    * almost all of them, so khw thinks a single mutex should suffice.
-    */
-#    define LOCALE_LOCK_    LOCALE_BASE_LOCK_(0)
-#    define LOCALE_UNLOCK_  LOCALE_BASE_UNLOCK_
-#  else
+    * platform isn't using thread-safe locales */
+#  ifdef USE_THREAD_SAFE_LOCALE
 #    define LOCALE_LOCK_    NOOP
 #    define LOCALE_UNLOCK_  NOOP
-#  endif
-#  if ! defined(USE_THREAD_SAFE_LOCALE)
+#  else
+#    define LOCALE_LOCK_    LOCALE_BASE_LOCK_(0)
+#    define LOCALE_UNLOCK_  LOCALE_BASE_UNLOCK_
 #    ifdef USE_LOCALE_NUMERIC
 #      define LC_NUMERIC_LOCK(cond_to_panic_if_already_locked)              \
                         LOCALE_BASE_LOCK_(cond_to_panic_if_already_locked)
@@ -6805,24 +6779,25 @@ the plain locale pragma without a parameter (S<C<use locale>>) is in effect.
       * section.  The categories (except LC_NUMERIC) can be defined in terms of
       * this macro.
       * */
-#      define LC_foo_base_LOCK_(cat, querylocale, changelocale)             \
+#      define LC_foo_base_LOCK_(cat, query_fcn, change_fcn)                 \
         STMT_START {                                                        \
             const char * actual;                                            \
             const char * wanted;                                            \
             dTHX;                                                           \
                                                                             \
             LOCALE_LOCK_;                                                   \
-            actual = querylocale(LC_##cat, NULL);                           \
+            actual = query_fcn(LC_##cat, NULL);                             \
             wanted = PL_curlocales[LC_##cat##_INDEX_];                      \
             DEBUG_Lv(PerlIO_printf(Perl_debug_log,                          \
                      "%s: %d: actual=%s, wanted=%s\n",                      \
                      __FILE__,  __LINE__, actual, wanted));                 \
             if (strNE(actual, wanted)) {                                    \
-                changelocale(LC_##cat, wanted);                             \
+                change_fcn(LC_##cat, wanted);                               \
             }                                                               \
         } STMT_END
 
 #      define LC_foo_LOCK_(cat)                                             \
+    /* Why sodes setlocale work on windows? probably need wsetlocale*/ \
                         LC_foo_base_LOCK_(cat, setlocale, Perl_setlocale)
        /* No need to switch back after the operation */
 #      define LC_foo_UNLOCK_(cat)   LOCALE_UNLOCK_
@@ -6830,16 +6805,17 @@ the plain locale pragma without a parameter (S<C<use locale>>) is in effect.
 #  endif    /* ! USE_THREAD_SAFE_LOCALE) */
 #endif
 
-   /* The rest of these may need to be locked even if there is a thread safe locale, as they may not be reentrant.  They do not automatically get any reentrant versions substituted for them in reentr.h.  Instead, XS code should do the testing itself or do perl_call of the POSIX 
-    Now define some lock functions for individual functions.  Some of these assume reentrancy We do define a different macro for each case; then if we want to have
-    * separate mutexes for some of them, the only changes needed are here.
-    * Define just the necessary macros.  The compiler should then croak if the
-    * #ifdef's in the code are incorrect */
-      /* On systems that don't have per-thread locales, even though we don't
-       * think we are changing the locale ourselves, behind the scenes it does
-       * get changed to whatever the thread's should be, so it has to be an
-       * exclusive lock.  By defining it here with this name, we can, for the
-       * most part, hide this detail from the rest of the code */
+/* There are some locale-related functions which may need locking only because
+ * each has its own global buffer which could be zapped by the same function
+ * executing in another thread.  Ideally, there would be a separate mutex for
+ * each such function, so that another thread isn't unnecessarily blocked.
+ * But, it is not expected that any of these will be called frequently, and the
+ * locked interval should be short, and modern platforms will have reentrant
+ * versions (which don't lock) for almost all of them, so khw thinks a single
+ * mutex should suffice.  In cases of emulating thread safety, we also have to
+ * lock them so that the global locale can be safely changed during the
+ * function's execution.  Having a single mutex facilitates that, avoiding
+ * potential deadlock situations */
 
 #define SETLOCALE_LOCK          LOCALE_LOCK_
 #define SETLOCALE_UNLOCK        LOCALE_UNLOCK_
@@ -6903,19 +6879,20 @@ the plain locale pragma without a parameter (S<C<use locale>>) is in effect.
 /* These non-reentrant versions need whatever lock we have if we didn't create
  * one above from LC_CTYPE_LOCK */
 #if !defined(MBLEN_LOCK_) && defined(HAS_MBLEN)
-#  define MBLEN_LOCK_           LOCALE_LOCK_
-#  define MBLEN_UNLOCK_         LOCALE_UNLOCK_
+#  define MBLEN_LOCK_           LOCALE_BASE_LOCK_(0)
+#  define MBLEN_UNLOCK_         LOCALE_BASE_UNLOCK_
 #endif
 #if !defined(MBTOWC_LOCK_) && defined(HAS_MBTOWC)
-#  define MBTOWC_LOCK_          LOCALE_LOCK_ 
-#  define MBTOWC_UNLOCK_        LOCALE_UNLOCK_
+#  define MBTOWC_LOCK_          LOCALE_BASE_LOCK_(0)
+#  define MBTOWC_UNLOCK_        LOCALE_BASE_UNLOCK_
 #endif
 #if !defined(WCTOMB_LOCK_) && defined(HAS_WCTOMB)
-#  define WCTOMB_LOCK_          LOCALE_LOCK_
-#  define WCTOMB_UNLOCK_        LOCALE_UNLOCK_
+#  define WCTOMB_LOCK_          LOCALE_BASE_LOCK_(0)
+#  define WCTOMB_UNLOCK_        LOCALE_BASE_UNLOCK_
 #endif
 
 /* Whereas the reentrant versions don't */
+/* XXX why not trailing underscores? */
 #if ! defined(MBRLEN_LOCK) && defined(HAS_MBRLEN)
 #  define MBRLEN_LOCK           NOOP
 #  define MBRLEN_UNLOCK         NOOP
@@ -7119,6 +7096,7 @@ cannot have changed since the precalculation.
                     (! PL_numeric_underlying && PL_numeric_standard < 2)
 
 #  define DECLARATION_FOR_LC_NUMERIC_MANIPULATION                           \
+    /* XXX note can remove #ifdefs around this */\
     void (*_restore_LC_NUMERIC_function)(pTHX) = NULL
 
 #  define STORE_LC_NUMERIC_SET_TO_NEEDED_IN(in)                             \
@@ -7252,29 +7230,16 @@ cannot have changed since the precalculation.
     STMT_START { block; } STMT_END
 
 #endif /* !USE_LOCALE_NUMERIC */
-
-#define DECLARATION_FOR_LOCALECONV_LOCK                                     \
-                                    DECLARATION_FOR_LC_NUMERIC_MANIPULATION
-
-/* Locking for localeconv() is a bit complicated.  It is sensitive to both
- * LC_NUMERIC and LC_MONETARY, so both have to be forced to their underlying
- * values, if necessary.  On some platforms, both will be no-ops, but the
- * function still needs to be locked because other threads share its buffer.
- * Rather than #ifdef all the combinations here, we just do all three, relying
- * on the mutex being recursive, and the ones that arent needed for the
- * platform (perhaps all three on an unthreaded system) will just be no-ops */
-#define LOCALECONV_LOCK                                                     \
-            STMT_START {                                                    \
-                STORE_LC_NUMERIC_FORCE_TO_UNDERLYING();                     \
-                LC_MONETARY_LOCK;                                           \
-                LOCALE_BASE_LOCK_(0);                                       \
-            } STMT_END
-#define LOCALECONV_UNLOCK                                                   \
-            STMT_START {                                                    \
-                LOCALE_BASE_UNLOCK_;                                        \
-                LC_MONETARY_UNLOCK;                                         \
-                RESTORE_LC_NUMERIC();                                       \
-            } STMT_END
+   /* The rest of these may need to be locked even if there is a thread safe locale, as they may not be reentrant.  They do not automatically get any reentrant versions substituted for them in reentr.h.  Instead, XS code should do the testing itself or do perl_call of the POSIX 
+    Now define some lock functions for individual functions.  Some of these assume reentrancy We do define a different macro for each case; then if we want to have
+    * separate mutexes for some of them, the only changes needed are here.
+    * Define just the necessary macros.  The compiler should then croak if the
+    * #ifdef's in the code are incorrect */
+      /* On systems that don't have per-thread locales, even though we don't
+       * think we are changing the locale ourselves, behind the scenes it does
+       * get changed to whatever the thread's should be, so it has to be an
+       * exclusive lock.  By defining it here with this name, we can, for the
+       * most part, hide this detail from the rest of the code */
 
 #ifdef USE_ITHREADS
 #  define ENV_LOCK            PERL_WRITE_LOCK(&PL_env_mutex)
