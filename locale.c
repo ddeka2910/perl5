@@ -690,20 +690,30 @@ typedef enum { WANT_VOID, WANT_BOOL, WANT_LOCALE } setlocale_returns;
             }                                                               \
         } STMT_END
 
-#    undef LC_COLLATE_LOCK
-#    define LC_COLLATE_LOCK    LC_foo_LOCK_i(LC_COLLATE_INDEX_)
+#    ifdef USE_LOCALE_COLLATE
+#      undef LC_COLLATE_LOCK
+#      define LC_COLLATE_LOCK    LC_foo_LOCK_i(LC_COLLATE_INDEX_)
+#    endif
 
-#    undef LC_CTYPE_LOCK
-#    define LC_CTYPE_LOCK       LC_foo_LOCK_i(LC_CTYPE_INDEX_)
+#    ifdef USE_LOCALE_CTYPE
+#      undef LC_CTYPE_LOCK
+#      define LC_CTYPE_LOCK       LC_foo_LOCK_i(LC_CTYPE_INDEX_)
+#    endif
 
-#    undef LC_MESSAGES_LOCK
-#    define LC_MESSAGES_LOCK    LC_foo_LOCK_i(LC_MESSAGES_INDEX_)
+#    ifdef USE_LOCALE_MESSAGES
+#      undef LC_MESSAGES_LOCK
+#      define LC_MESSAGES_LOCK    LC_foo_LOCK_i(LC_MESSAGES_INDEX_)
+#    endif
 
-#    undef LC_MONETARY_LOCK
-#    define LC_MONETARY_LOCK    LC_foo_LOCK_i(LC_MONETARY_INDEX_)
+#    ifdef USE_LOCALE_MONETARY
+#      undef LC_MONETARY_LOCK
+#      define LC_MONETARY_LOCK    LC_foo_LOCK_i(LC_MONETARY_INDEX_)
+#    endif
 
-#    undef LC_TIME_LOCK
-#    define LC_TIME_LOCK        LC_foo_LOCK_i(LC_TIME_INDEX_)
+#    ifdef USE_LOCALE_TIME
+#      undef LC_TIME_LOCK
+#      define LC_TIME_LOCK        LC_foo_LOCK_i(LC_TIME_INDEX_)
+#    endif
 
 STATIC const char *
 S_do_setlocale_i(pTHX_ const unsigned int cat_index, const char * locale,
@@ -1544,12 +1554,12 @@ S_setlocale_failure_panic_i(const unsigned int cat_index,
     const int cat = categories[cat_index];
     const char * name = category_names[cat_index];
 
-    PERL_ARGS_ASSERT_SETLOCALE_FAILURE_PANIC_I;
-
 #ifdef USE_C_BACKTRACE
     dTHX;
     dump_c_backtrace(Perl_debug_log, 20, 1);
 #endif
+
+    PERL_ARGS_ASSERT_SETLOCALE_FAILURE_PANIC_I;
 
     if (current == NULL) {
         current = do_querylocale_r(cat);
@@ -1602,6 +1612,7 @@ S_set_numeric_radix(pTHX_ const bool use_locale)
 STATIC void
 S_new_numeric(pTHX_ const char *newnum)
 {
+    char *save_newnum;
 
 #ifndef USE_LOCALE_NUMERIC
 
@@ -1641,8 +1652,6 @@ S_new_numeric(pTHX_ const char *newnum)
      *                  no-op under these circumstances.)  This variable is
      *                  used to avoid having to recalculate.
      */
-
-    char *save_newnum;
 
     if (! newnum) {
         Safefree(PL_numeric_name);
@@ -2931,20 +2940,51 @@ S_get_nl_item_category_index(const int item)
 {
     switch (item) {
       case YESEXPR: case YESSTR: case NOEXPR: case NOSTR:
+
+#ifdef USE_LOCALE_MESSAGES
         return LC_MESSAGES_INDEX_;
+#else
+        break;
+#endif
 
       case CODESET:
+
+#ifdef USE_LOCALE_CTYPE
         return LC_CTYPE_INDEX_;
+#else
+        break;
+#endif
 
       case CRNCYSTR:
+
+#ifdef USE_LOCALE_MONETARY
         return LC_MONETARY_INDEX_;
+#else
+        break;
+#endif
 
       case RADIXCHAR: case THOUSEP:
+
+#ifdef USE_LOCALE_NUMERIC
         return LC_NUMERIC_INDEX_;
+#else
+        break;
+#endif
 
       default:
+
+#ifdef USE_LOCALE_TIME
         return LC_TIME_INDEX_;
+#else
+        break;
+#endif
+
     }
+
+    Perl_croak_nocontext("panic: %s: %d: Attempt to use unsupported locale"
+                         " category for nl_langinfo() item %d\n",
+                         __FILE__, __LINE__, item);
+    NOT_REACHED; /* NOTREACHED */
 }
 
 #endif
@@ -2996,9 +3036,9 @@ S_get_locale_string_utf8ness(pTHX_ const int item, const char * string, const bo
      *      2 = defintely yes
      */
 
-    PERL_ARGS_ASSERT_GET_LOCALE_STRING_UTF8NESS;
-
     Size_t len;
+
+    PERL_ARGS_ASSERT_GET_LOCALE_STRING_UTF8NESS;
 
     if (string == NULL) {
         return 0;
@@ -3384,7 +3424,7 @@ S_my_nl_langinfo(pTHX_ const int item, int * utf8ness)
       case MON_5: case MON_6: case MON_7: case MON_8:
       case MON_9: case MON_10: case MON_11: case MON_12:
 
-        GCC_DIAG_IGNORE_DECL(-Wimplicit-fallthrough=);
+        /*GCC_DIAG_IGNORE_DECL(-Wimplicit-fallthrough);*/
 
         switch (item) {
           default:
@@ -3464,7 +3504,7 @@ S_my_nl_langinfo(pTHX_ const int item, int * utf8ness)
             break;
         }
 
-        GCC_DIAG_RESTORE_DECL;
+        /*GCC_DIAG_RESTORE_DECL;*/
 
         /* The year was deliberately chosen so that January 1 is on the
          * first day of the week.  Since we're only getting one thing at a
@@ -3524,14 +3564,16 @@ S_my_nl_langinfo(pTHX_ const int item, int * utf8ness)
       case CODESET:   return C_codeset;
 
 #  endif
-#  if  ! defined(USE_LOCALE_MONETARY)                           \
-   || (! defined(HAS_LOCALECONV) && ! defined(HAS_LOCALECONV_L))
+#  if  ! defined(USE_LOCALE_MONETARY)                               \
+   || (   ! defined(WIN32)                                          \
+       && (! defined(HAS_LOCALECONV) && ! defined(HAS_LOCALECONV_L)))
 
       case CRNCYSTR: return "";
 
 #  endif
-#  if  ! defined(USE_LOCALE_NUMERIC)                            \
-   || (! defined(HAS_LOCALECONV) && ! defined(HAS_LOCALECONV_L))
+#  if  ! defined(USE_LOCALE_NUMERIC)                                \
+   || (   ! defined(WIN32)                                          \
+       && (! defined(HAS_LOCALECONV) && ! defined(HAS_LOCALECONV_L)))
 
       case RADIXCHAR: return ".";
       case THOUSEP:   return "";
@@ -3636,9 +3678,10 @@ S_my_nl_langinfo(pTHX_ const int item, int * utf8ness)
         return retval;
     }
 
-#  else /* Below is not Win32 */
+#  elif defined(HAS_LOCALECONV) || defined(HAS_LOCALECONV_L)
 
-    /* Three of the four items are available from localeconv() */
+    /* Below is not Win32.  Three of the four items are available from
+     * localeconv() */
 #    ifdef USE_LOCALE_MONETARY
 
       case CRNCYSTR:
@@ -3654,8 +3697,9 @@ S_my_nl_langinfo(pTHX_ const int item, int * utf8ness)
             
         {   /* So use localeconv() to get at those three */
             struct lconv lc;
-            my_localeconv(&lc);
             const char * prefix = NULL;
+
+            my_localeconv(&lc);
 
             switch (item) {
               case CRNCYSTR:  temp = lc.currency_symbol; break;
@@ -5235,9 +5279,9 @@ S_switch_locales_i(pTHX_ const unsigned cat_index, const char * new_locale)
      * so can be switched back to with the companion function
      * restore_switched_locale_i(),  (NULL if no restoral is necessary.) */
 
-    PERL_ARGS_ASSERT_SWITCH_LOCALES_I;
-
     char * locale_to_restore_to = NULL;
+
+    PERL_ARGS_ASSERT_SWITCH_LOCALES_I;
 
     /* Find the original locale of the category we may need to change, so that
      * XXX *stdize* both, and call from inline.h
@@ -5312,8 +5356,6 @@ Perl_is_locale_utf8(pTHX_ const char * locale)
      * least MB_CUR_MAX, English locales with an ASCII currency symbol depend
      * on the name containing UTF-8 or not. */
 
-    PERL_ARGS_ASSERT_IS_LOCALE_UTF8;
-
 #ifdef EBCDIC  /* On os390, there aren't any real UTF-8 locales at this time */
 
     PERL_UNUSED_ARG(locale);
@@ -5328,6 +5370,8 @@ Perl_is_locale_utf8(pTHX_ const char * locale)
     const char * temp = NULL;
     Size_t temp_size = 0;
     bool retval;
+
+    PERL_ARGS_ASSERT_IS_LOCALE_UTF8;
 
     /* Do not destroy PL_langinfo_buf, as it is supposed to be stable between
      * nl_langinfo() calls per-thread */
@@ -5367,6 +5411,7 @@ Perl_is_locale_utf8(pTHX_ const char * locale)
         PL_langinfo_buf = save_to_buffer(temp,
                                 &PL_langinfo_buf, &PL_langinfo_bufsize, NULL);
         DEBUG_Lv(PerlIO_printf(Perl_debug_log, "%s: %d: restored PL_langinfo_buf='%s'\n", __FILE__,  __LINE__, PL_langinfo_buf));
+        Safefree(temp);
     }
 
     DEBUG_Lv(PerlIO_printf(Perl_debug_log, "%s: %d: returning %d\n", __FILE__,  __LINE__, retval));

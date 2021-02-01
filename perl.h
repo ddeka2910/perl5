@@ -6850,7 +6850,7 @@ the plain locale pragma without a parameter (S<C<use locale>>) is in effect.
 #  define STRFTIME_LOCK     STMT_START { LC_TIME_LOCK; ENV_READ_LOCK; } STMT_END
 #  define STRFTIME_UNLOCK   STMT_START { ENV_READ_UNLOCK; LC_TIME_UNLOCK; } STMT_END
 #endif
-#if defined(USE_LOCALE_NUMERIC) && ! defined(LC_NUMERIC_LOCK)
+#if ! defined(LC_NUMERIC_LOCK)
 #  define LC_NUMERIC_LOCK(cond)   NOOP
 #  define LC_NUMERIC_UNLOCK       NOOP
 #endif
@@ -6884,51 +6884,51 @@ the plain locale pragma without a parameter (S<C<use locale>>) is in effect.
 
 /* These non-reentrant versions need whatever lock we have if we didn't create
  * one above from LC_CTYPE_LOCK */
-#if !defined(MBLEN_LOCK_) && defined(HAS_MBLEN)
+#if !defined(MBLEN_LOCK_)
 #  define MBLEN_LOCK_           LOCALE_BASE_LOCK_(0)
 #  define MBLEN_UNLOCK_         LOCALE_BASE_UNLOCK_
 #endif
-#if !defined(MBTOWC_LOCK_) && defined(HAS_MBTOWC)
+#if !defined(MBTOWC_LOCK_)
 #  define MBTOWC_LOCK_          LOCALE_BASE_LOCK_(0)
 #  define MBTOWC_UNLOCK_        LOCALE_BASE_UNLOCK_
 #endif
-#if !defined(WCTOMB_LOCK_) && defined(HAS_WCTOMB)
+#if !defined(WCTOMB_LOCK_)
 #  define WCTOMB_LOCK_          LOCALE_BASE_LOCK_(0)
 #  define WCTOMB_UNLOCK_        LOCALE_BASE_UNLOCK_
 #endif
 
 /* Whereas the reentrant versions don't */
 /* XXX why not trailing underscores? */
-#if ! defined(MBRLEN_LOCK) && defined(HAS_MBRLEN)
+#if ! defined(MBRLEN_LOCK)
 #  define MBRLEN_LOCK           NOOP
 #  define MBRLEN_UNLOCK         NOOP
 #endif
-#if ! defined(MBRTOWC_LOCK) && defined(HAS_MBRTOWC)
+#if ! defined(MBRTOWC_LOCK)
 #  define MBRTOWC_LOCK          NOOP
 #  define MBRTOWC_UNLOCK        NOOP
 #endif
-#if ! defined(WCRTOMB_LOCK) && defined(HAS_WCRTOMB)
+#if ! defined(WCRTOMB_LOCK)
 #  define WCRTOMB_LOCK          NOOP
 #  define WCRTOMB_UNLOCK        NOOP
 #endif
 
-#if defined(USE_LOCALE_COLLATE) && ! defined(LC_COLLATE_LOCK)
+#if ! defined(LC_COLLATE_LOCK)
 #  define LC_COLLATE_LOCK       NOOP
 #  define LC_COLLATE_UNLOCK     NOOP
 #endif
-#if defined(USE_LOCALE_CTYPE) && ! defined(LC_CTYPE_LOCK)
+#if! defined(LC_CTYPE_LOCK)
 #  define LC_CTYPE_LOCK         NOOP
 #  define LC_CTYPE_UNLOCK       NOOP
 #endif
-#if defined(USE_LOCALE_MESSAGES) && ! defined(LC_MESSAGES_LOCK)
+#if ! defined(LC_MESSAGES_LOCK)
 #  define LC_MESSAGES_LOCK       NOOP
 #  define LC_MESSAGES_UNLOCK     NOOP
 #endif
-#if defined(USE_LOCALE_MONETARY) && ! defined(LC_MONETARY_LOCK)
+#if ! defined(LC_MONETARY_LOCK)
 #  define LC_MONETARY_LOCK      NOOP
 #  define LC_MONETARY_UNLOCK    NOOP
 #endif
-#if defined(USE_LOCALE_TIME) && ! defined(LC_TIME_LOCK)
+#if ! defined(LC_TIME_LOCK)
 #  define LC_TIME_LOCK          NOOP
 #  define LC_TIME_UNLOCK        NOOP
 #endif

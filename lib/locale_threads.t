@@ -19,8 +19,8 @@ BEGIN {
 
 use Time::HiRes qw(time usleep);
 
-my $thread_count = 50;
-my $iterations = 100;
+my $thread_count = 10;
+my $iterations = 5000;
 my $max_result_length = 10000;
 
 # Estimate as to how long to allow a thread to be ready to roll after
