@@ -19,8 +19,8 @@ BEGIN {
 
 use Time::HiRes qw(time usleep);
 
-my $thread_count = 600;
-my $iterations = 1;
+my $thread_count = 50;
+my $iterations = 100;
 my $max_result_length = 10000;
 
 # Estimate as to how long to allow a thread to be ready to roll after
@@ -140,7 +140,8 @@ sub add_trials($$;$)
             if (   $locale_pattern
                 && defined $seen{$result}{$category_name}
                 && defined $seen{$result}{$category_name}{$op}
-                && $seen{$result}{$category_name}{$op} ne "C")
+                && $seen{$result}{$category_name}{$op} ne "C"
+                && $seen{$result}{$category_name}{$op} !~ /$locale_pattern/)
             {
                 my $swap_locale = $seen{$result}{$category_name}{$op};
 
@@ -471,7 +472,7 @@ my $starting_time = sprintf "%.16e", (    time()
 
                             # Then verify it is the expected value
                             if (   defined \$got
-                                && utf8::is_utf8(\$got) == utf8::is_utf8(\$expected)
+                                #&& utf8::is_utf8(\$got) == utf8::is_utf8(\$expected)
                                 && \$got eq \$expected)
                             {
                                 \$corrects{\$category_name}++;
@@ -521,10 +522,10 @@ my $starting_time = sprintf "%.16e", (    time()
                                     Dump \$got;
                                 }
                             }
-                        }
-                    }
+                        } # Loop to do the remaining tests for this category
+                    } # Loop to do the remaining categories for this iteration
 
-                    return 0 if \$errors;
+                    return 0 if \$errors;   # But no more iterations if failure
                 }
 
                 return 1;   # Success

@@ -1099,16 +1099,20 @@ Example usage:
 #    endif
 #  endif
 
-/*#  define NO_NL_LOCALE_NAME*/
+#  define NO_NL_LOCALE_NAME
 #  ifdef USE_POSIX_2008_LOCALE
-#    if     defined(HAS_QUERYLOCALE)                                        \
-        || (     defined(_NL_LOCALE_NAME)                                   \
-            &&   defined(HAS_THREAD_SAFE_NL_LANGINFO_L)                     \
-                  /* On systems that accept any locale name, the real       \
-                   * underlying locale is often returned by this internal   \
-                   * function, so we can't use it */                        \
-            && ! defined(SETLOCALE_ACCEPTS_ANY_LOCALE_NAME)                 \
-            && ! defined(NO_NL_LOCALE_NAME))
+#    if  defined(HAS_QUERYLOCALE)                                           \
+              /* Has this internal undocumented item for nl_langinfo() */   \
+     || (     defined(_NL_LOCALE_NAME)                                      \
+              /* And not forbidden from using it */                         \
+         && ! defined(NO_NL_LOCALE_NAME)                                    \
+              /* We need the below because we will be calling it within a   \
+               * macro, can't have it get messed up by another thread. */   \
+         &&   defined(HAS_THREAD_SAFE_NL_LANGINFO_L)                        \
+               /* On systems that accept any locale name, the real          \
+                * underlying locale is often returned by this internal      \
+                * item, so we can't use it */                               \
+         && ! defined(SETLOCALE_ACCEPTS_ANY_LOCALE_NAME))
 #      define USE_QUERYLOCALE
 #    endif
 #  endif
@@ -1121,7 +1125,7 @@ Example usage:
 #endif
 
 /*  Microsoft documentation reads in the change log for VS 2015:
- *     "The localeconv function declared in locale.h now works correctly when
+ *    "The localeconv function declared in locale.h now works correctly when
  *     per-thread locale is enabled. In previous versions of the library, this
  *     function would return the lconv data for the global locale, not the
  *     thread's locale."
@@ -4629,7 +4633,8 @@ Gid_t getegid (void);
 #  define DEBUG_Xv(a) DEBUG__(DEBUG_Xv_TEST, a)
 #  define DEBUG_Uv(a) DEBUG__(DEBUG_Uv_TEST, a)
 #  define DEBUG_Pv(a) DEBUG__(DEBUG_Pv_TEST, a)
-#  define DEBUG_Lv(a) DEBUG__(DEBUG_Lv_TEST, ({ PerlIO_printf(Perl_debug_log, "%p: ", aTHX); a; }))
+#  define DEBUG_Lv(a) DEBUG__(DEBUG_Lv_TEST, a)
+/*#  define DEBUG_Lv(a) DEBUG__(DEBUG_Lv_TEST, ({ PerlIO_printf(Perl_debug_log, "%p: ", aTHX); a; }))*/
 #  define DEBUG_yv(a) DEBUG__(DEBUG_yv_TEST, a)
 
 #  define DEBUG_S(a) DEBUG__(DEBUG_S_TEST, a)
@@ -4641,7 +4646,8 @@ Gid_t getegid (void);
 #  define DEBUG_q(a) DEBUG__(DEBUG_q_TEST, a)
 #  define DEBUG_M(a) DEBUG__(DEBUG_M_TEST, a)
 #  define DEBUG_B(a) DEBUG__(DEBUG_B_TEST, a)
-#  define DEBUG_L(a) DEBUG__(DEBUG_L_TEST, ({ PerlIO_printf(Perl_debug_log, "%p: ", aTHX); a; }))
+/*#  define DEBUG_L(a) DEBUG__(DEBUG_L_TEST, ({ PerlIO_printf(Perl_debug_log, "%p: ", aTHX); a; }))*/
+#  define DEBUG_L(a) DEBUG__(DEBUG_L_TEST, a)
 #  define DEBUG_i(a) DEBUG__(DEBUG_i_TEST, a)
 #  define DEBUG_y(a) DEBUG__(DEBUG_y_TEST, a)
 
@@ -6779,7 +6785,7 @@ the plain locale pragma without a parameter (S<C<use locale>>) is in effect.
       * section.  The categories (except LC_NUMERIC) can be defined in terms of
       * this macro.
       * */
-#      define LC_foo_base_LOCK_(cat, query_fcn, change_fcn)                 \
+#      define LC_foo_base_LOCK_c_(cat, query_fcn, change_fcn)               \
         STMT_START {                                                        \
             const char * actual;                                            \
             const char * wanted;                                            \
@@ -6796,11 +6802,11 @@ the plain locale pragma without a parameter (S<C<use locale>>) is in effect.
             }                                                               \
         } STMT_END
 
-#      define LC_foo_LOCK_(cat)                                             \
-    /* Why sodes setlocale work on windows? probably need wsetlocale*/ \
-                        LC_foo_base_LOCK_(cat, setlocale, Perl_setlocale)
+#      define LC_foo_LOCK_c_(cat)                                           \
+    /* Why XXX does setlocale work on windows? probably need wsetlocale*/      \
+                        LC_foo_base_LOCK_c_(cat, setlocale, Perl_setlocale)
        /* No need to switch back after the operation */
-#      define LC_foo_UNLOCK_(cat)   LOCALE_UNLOCK_
+#      define LC_foo_UNLOCK_c_(cat)   LOCALE_UNLOCK_
 #    endif
 #  endif    /* ! USE_THREAD_SAFE_LOCALE) */
 #endif
@@ -6820,26 +6826,26 @@ the plain locale pragma without a parameter (S<C<use locale>>) is in effect.
 #define SETLOCALE_LOCK          LOCALE_LOCK_
 #define SETLOCALE_UNLOCK        LOCALE_UNLOCK_
 
-#ifdef LC_foo_LOCK_
+#ifdef LC_foo_LOCK_c_
 #  ifdef USE_LOCALE_COLLATE
-#    define LC_COLLATE_LOCK       LC_foo_LOCK_(COLLATE)
-#    define LC_COLLATE_UNLOCK     LC_foo_UNLOCK_(COLLATE)
+#    define LC_COLLATE_LOCK       LC_foo_LOCK_c_(COLLATE)
+#    define LC_COLLATE_UNLOCK     LC_foo_UNLOCK_c_(COLLATE)
 #  endif
 #  ifdef USE_LOCALE_CTYPE
-#    define LC_CTYPE_LOCK         LC_foo_LOCK_(CTYPE)
-#    define LC_CTYPE_UNLOCK       LC_foo_UNLOCK_(CTYPE)
+#    define LC_CTYPE_LOCK         LC_foo_LOCK_c_(CTYPE)
+#    define LC_CTYPE_UNLOCK       LC_foo_UNLOCK_c_(CTYPE)
 #  endif
 #  ifdef USE_LOCALE_MESSAGES
-#    define LC_MESSAGES_LOCK      LC_foo_LOCK_(MESSAGES)
-#    define LC_MESSAGES_UNLOCK    LC_foo_UNLOCK_(MESSAGES)
+#    define LC_MESSAGES_LOCK      LC_foo_LOCK_c_(MESSAGES)
+#    define LC_MESSAGES_UNLOCK    LC_foo_UNLOCK_c_(MESSAGES)
 #  endif
 #  ifdef USE_LOCALE_MONETARY
-#    define LC_MONETARY_LOCK      LC_foo_LOCK_(MONETARY)
-#    define LC_MONETARY_UNLOCK    LC_foo_UNLOCK_(MONETARY)
+#    define LC_MONETARY_LOCK      LC_foo_LOCK_c_(MONETARY)
+#    define LC_MONETARY_UNLOCK    LC_foo_UNLOCK_c_(MONETARY)
 #  endif
 #  ifdef USE_LOCALE_TIME
-#    define LC_TIME_LOCK          LC_foo_LOCK_(TIME)
-#    define LC_TIME_UNLOCK        LC_foo_UNLOCK_(TIME)
+#    define LC_TIME_LOCK          LC_foo_LOCK_c_(TIME)
+#    define LC_TIME_UNLOCK        LC_foo_UNLOCK_c_(TIME)
 #  endif
 #  define STRFTIME_LOCK     STMT_START { LC_TIME_LOCK; ENV_READ_LOCK; } STMT_END
 #  define STRFTIME_UNLOCK   STMT_START { ENV_READ_UNLOCK; LC_TIME_UNLOCK; } STMT_END

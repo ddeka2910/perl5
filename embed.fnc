@@ -1608,7 +1608,7 @@ pE	|int	|is_LC_MESSAGES_string_utf8|NN const char * string|const bool known_utf8
 pEo	|wchar_t|mbtowc|NULLOK const wchar_t * pwc|NULLOK const char * s|const Size_t len
 CpO	|int	|init_i18nl10n	|int printwarn
 CbpOD	|int	|init_i18nl14n	|int printwarn
-p	|char*	|my_strerror	|const int errnum|NN bool * is_utf8
+p	|char*	|my_strerror	|const int errnum|NN int * utf8ness
 XpT	|void	|_warn_problematic_locale
 Xp	|void	|set_numeric_underlying
 Xp	|void	|set_numeric_standard
@@ -3268,9 +3268,9 @@ ST	|unsigned|get_nl_item_category_index|const int item
 #    endif
 #  endif
 iTR	|const char *|save_to_buffer|NULLOK const char * string	\
-				    |NULLOK const char **buf		\
+				    |NULLOK const char **buf	\
 				    |NN Size_t *buf_size	\
-				    |const Size_t offset
+				    |NULLOK const char * prefix
 #  ifdef WIN32
 S	|char*	|win32_setlocale|int category|NULLOK const char* locale
 #  else

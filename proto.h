@@ -2203,9 +2203,9 @@ PERL_CALLCONV int	Perl_my_socketpair(int family, int type, int protocol, int fd[
 #define PERL_ARGS_ASSERT_MY_STAT
 PERL_CALLCONV I32	Perl_my_stat_flags(pTHX_ const U32 flags);
 #define PERL_ARGS_ASSERT_MY_STAT_FLAGS
-PERL_CALLCONV char*	Perl_my_strerror(pTHX_ const int errnum, bool * is_utf8);
+PERL_CALLCONV char*	Perl_my_strerror(pTHX_ const int errnum, int * utf8ness);
 #define PERL_ARGS_ASSERT_MY_STRERROR	\
-	assert(is_utf8)
+	assert(utf8ness)
 PERL_CALLCONV char *	Perl_my_strftime(pTHX_ const char *fmt, int sec, int min, int hour, int mday, int mon, int year, int wday, int yday, int isdst)
 			__attribute__format__(__strftime__,pTHX_1,0);
 #define PERL_ARGS_ASSERT_MY_STRFTIME	\
@@ -5182,7 +5182,7 @@ PERL_CALLCONV SV*	Perl_hfree_next_entry(pTHX_ HV *hv, STRLEN *indexp);
 #endif
 #if defined(PERL_IN_LOCALE_C)
 #ifndef PERL_NO_INLINE_FUNCTIONS
-PERL_STATIC_INLINE const char *	S_save_to_buffer(const char * string, const char **buf, Size_t *buf_size, const Size_t offset)
+PERL_STATIC_INLINE const char *	S_save_to_buffer(const char * string, const char **buf, Size_t *buf_size, const char * prefix)
 			__attribute__warn_unused_result__;
 #define PERL_ARGS_ASSERT_SAVE_TO_BUFFER	\
 	assert(buf_size)

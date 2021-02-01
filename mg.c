@@ -845,14 +845,14 @@ SV *
 Perl_sv_string_from_errnum(pTHX_ int errnum, SV *tgtsv)
 {
     char const *errstr;
-    bool is_utf8;
+    int utf8ness;
 
     if(!tgtsv)
         tgtsv = sv_newmortal();
-    errstr = my_strerror(errnum, &is_utf8);
+    errstr = my_strerror(errnum, &utf8ness);
     if(errstr) {
         sv_setpv(tgtsv, errstr);
-        if (is_utf8) {
+        if (utf8ness > 1) {
             SvUTF8_on(tgtsv);
         }
         fixup_errno_string(tgtsv);
@@ -930,11 +930,11 @@ Perl_magic_get(pTHX_ SV *sv, MAGIC *mg)
         }
 #elif defined(OS2)
         {
-            bool is_utf8;
+            int utf8ness;
             /* XXX indent */
         if (!(_emx_env & 0x200)) {	/* Under DOS */
             sv_setnv(sv, (NV)errno);
-            sv_setpv(sv, errno ? my_strerror(errnum, &is_utf8) : "");
+            sv_setpv(sv, errno ? my_strerror(errnum, &utf8ness) : "");
         } else {
             if (errno != errno_isOS2) {
                 const int tmp = _syserrno();
@@ -945,7 +945,7 @@ Perl_magic_get(pTHX_ SV *sv, MAGIC *mg)
             sv_setpv(sv, os2error(Perl_rc));
         }
         if (SvOK(sv) && strNE(SvPVX(sv), "")) {
-            if (is_utf8) {
+            if (utf8ness > 1) {
                 SvUTF8_on(sv);
             }
             fixup_errno_string(sv);
