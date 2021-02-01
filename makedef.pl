@@ -132,7 +132,7 @@ if (! $define{NO_LOCALE}) {
         && $define{HAS_DUPLOCALE}
         && $define{HAS_FREELOCALE})
     {
-        $define{USE_POSIX_2008_LOCALE} = 1;
+        $define{HAS_POSIX_2008_LOCALE} = 1;
         $define{USE_LOCALE} = 1;
     }
     elsif ($define{HAS_SETLOCALE}) {
@@ -142,20 +142,27 @@ if (! $define{NO_LOCALE}) {
 
 # https://en.wikipedia.org/wiki/Microsoft_Visual_C%2B%2B#Internal_version_numbering
 my $cctype = $ARGS{CCTYPE} =~ s/MSVC//r;
-#  if defined(USE_ITHREADS) && ! defined(NO_LOCALE_THREADS)
-#    define USE_LOCALE_THREADS
-if (! $define{HAS_SETLOCALE} && $define{USE_POSIX_2008_LOCALE}) {
+if ($define{USE_ITHREADS} && ! $define{NO_LOCALE_THREADS}) {
+    $define{USE_LOCALE_THREADS} = 1;
+}
+if (! $define{HAS_SETLOCALE} && $define{HAS_POSIX_2008_LOCALE}) {
     $define{USE_POSIX_2008_LOCALE} = 1;
     $define{USE_THREAD_SAFE_LOCALE} = 1;
 }
-elsif (   ($define{USE_ITHREADS} || $define{USE_THREAD_SAFE_LOCALE})
-       && (    $define{USE_POSIX_2008_LOCALE}
+elsif (   ($define{USE_LOCALE_THREADS} || $define{USE_THREAD_SAFE_LOCALE})
+       && (    $define{HAS_POSIX_2008_LOCALE}
            || ($ARGS{PLATFORM} eq 'win32' && (   $cctype !~ /\D/
                                               && $cctype >= 80)))
        && ! $define{NO_THREAD_SAFE_LOCALE})
 {
     $define{USE_THREAD_SAFE_LOCALE} = 1 unless $define{USE_THREAD_SAFE_LOCALE};
-    $define{USE_POSIX_2008_LOCALE} = 1 if $define{USE_POSIX_2008_LOCALE};
+    $define{USE_POSIX_2008_LOCALE} = 1 if $define{HAS_POSIX_2008_LOCALE};
+}
+if (     $define{USE_LOCALE_THREADS}
+    && ! $define{USE_THREAD_SAFE_LOCALE}
+    && ! $define{NO_THREAD_SAFE_LOCALE_EMULATION})
+{
+    $define{USE_THREAD_SAFE_LOCALE_EMULATION} = 1;
 }
 
 if (   $ARGS{PLATFORM} eq 'win32'
@@ -412,9 +419,16 @@ unless ($define{'USE_ITHREADS'}) {
 unless ($define{USE_POSIX_2008_LOCALE})
 {
     ++$skip{$_} foreach qw(
-        PL_ C_locale_obj
-        PL_curlocales
+        PL_C_locale_obj
         PL_underlying_numeric_obj
+    );
+}
+
+unless (    $define{USE_THREAD_SAFE_EMULATION}
+        || ($define{USE_POSIX_2008_LOCALE} && ! $define{HAS_QUERY_LOCALE}))
+{
+    ++$skip{$_} foreach qw(
+        PL_curlocales
     );
 }
 

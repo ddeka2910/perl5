@@ -498,8 +498,8 @@ S_category_name(const int category)
 #  define do_void_setlocale_c(cat, locale)                                  \
     STMT_START {                                                            \
         if (! my_setlocale(cat, locale)) {                                  \
-            setlocale_failure_panic_i(get_category_index(cat), NULL,        \
-                                      locale, __LINE__, 0)                  \
+            setlocale_failure_panic_i(get_category_index(cat, NULL),        \
+                                      NULL, locale, __LINE__, 0);           \
             NOT_REACHED; /* NOTREACHED */                                   \
         }                                                                   \
     } STMT_END
@@ -559,8 +559,8 @@ S_less_dicey_void_setlocale(const int cat, const char * locale, const line_t lin
 
     SETLOCALE_LOCK;
     if (! my_setlocale(cat, locale)) {
-        setlocale_failure_panic_i(get_category_index(cat), NULL,
-                                  locale, __LINE__, line);
+        setlocale_failure_panic_i(get_category_index(cat, NULL),
+                                      NULL, locale, __LINE__, 0);
     }
     SETLOCALE_UNLOCK;
 }
@@ -5501,7 +5501,7 @@ Perl_my_strerror(pTHX_ const int errnum, int * utf8ness)
         do_void_setlocale_c(LC_MESSAGES, "C");
         errstr = savepv(strerror(errnum));
 
-        restore_switched_locale_i(LC_MESSAGE_INDEX, orig_locale);
+        restore_switched_locale_i(LC_MESSAGES_INDEX_, orig_locale);
         *utf8ness = 1;
     }
 
