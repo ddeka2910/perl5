@@ -1,9 +1,11 @@
+#if 0
 #define CP_UTF8 1
 typedef int LCTYPE;
 #define LOCALE_IDEFAULTANSICODEPAGE 2
 #define LOCALE_SCURRENCY 3
 #define LOCALE_SDECIMAL 4
 #define LOCALE_STHOUSAND 5
+#endif
 /*    locale.c
  *
  *    Copyright (C) 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001,
@@ -2341,6 +2343,8 @@ S_new_collate(pTHX_ const char *newcoll)
 
 #ifdef WIN32
 
+#  include <winnls.h>
+
 STATIC
 wchar_t *
 S_Win_utf8_string_to_wstring(const char * utf8_string)
@@ -2398,7 +2402,7 @@ S_wrap_wsetlocale(pTHX_ int category, const char *locale) {
     char *result;
 
     if (locale) {
-        wlocale = Win_utf8_string_to_wstring(locale);
+        wlocale = S_Win_utf8_string_to_wstring(locale);
         if (! wlocale) {
             return NULL;
         }
@@ -2414,7 +2418,7 @@ S_wrap_wsetlocale(pTHX_ int category, const char *locale) {
         return NULL;
     }
 
-    result = Win_wstring_to_utf8_string(wresult);
+    result = S_Win_wstring_to_utf8_string(wresult);
     SAVEFREEPV(result); /* is there something better we can do here? */
 
     return result;
