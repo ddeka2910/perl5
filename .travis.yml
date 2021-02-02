@@ -3,6 +3,9 @@ cache: ccache
 
 os:
   - linux
+arch:
+  - amd64
+  - ppc64le  
 
 compiler:
   - gcc
